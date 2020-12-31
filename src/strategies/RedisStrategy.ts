@@ -3,7 +3,6 @@ import { RateLimiterResponse } from '../RateLimiter';
 import {
     LuaScript,
     MicrosecondsToWindowResolution,
-    SecondsToWindowResolution
 } from '../lua';
 
 export class RedisStrategy extends Strategy {
@@ -43,7 +42,6 @@ export class RedisStrategy extends Strategy {
             1, // number of keys
             key,
             this.limiter.window,
-            SecondsToWindowResolution[this.limiter.windowResolution],
             MicrosecondsToWindowResolution[this.limiter.windowResolution],
             this.limiter.windowExpireMs,
             this.limiter.limit

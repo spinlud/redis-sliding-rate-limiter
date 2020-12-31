@@ -3,7 +3,6 @@ import { RateLimiterResponse } from '../RateLimiter';
 import {
     LuaScript,
     MicrosecondsToWindowResolution,
-    SecondsToWindowResolution
 } from '../lua';
 
 export class IORedisStrategy extends Strategy {

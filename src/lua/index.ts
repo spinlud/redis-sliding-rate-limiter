@@ -3,6 +3,5 @@ export {
     WindowUnit,
     WindowUnitToMilliseconds,
     MicrosecondsToWindowResolution,
-    SecondsToWindowResolution,
     convertUnitToResolution,
 } from './utils';

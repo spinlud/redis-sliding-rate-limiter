@@ -26,30 +26,17 @@ export const WindowUnitToMilliseconds: FactorMapper = {
     [WindowUnit.YEAR]: 1000 * 60 * 60 * 24 * 365,
 };
 
-export const SecondsToWindowResolution: FactorMapper = {
-    [WindowUnit.MILLISECOND]: 1000,
-    [WindowUnit.CENTISECOND]: 100,
-    [WindowUnit.DECISECOND]: 10,
-    [WindowUnit.SECOND]: 1,
-    [WindowUnit.MINUTE]: 1 / 60,
-    [WindowUnit.HOUR]: 1 / (60 * 60),
-    [WindowUnit.DAY]: 1 / (60 * 60 * 24),
-    [WindowUnit.WEEK]: 1 / (60 * 60 * 24 * 7),
-    [WindowUnit.MONTH]: 1 / (60 * 60 * 24 * 30),
-    [WindowUnit.YEAR]: 1 / (60 * 60 * 24 * 365),
-};
-
 export const MicrosecondsToWindowResolution: FactorMapper = {
     [WindowUnit.MILLISECOND]: 1 / 1000,
     [WindowUnit.CENTISECOND]: 1 / 10000,
     [WindowUnit.DECISECOND]: 1 / 100000,
-    [WindowUnit.SECOND]: 0,
-    [WindowUnit.MINUTE]: 0,
-    [WindowUnit.HOUR]: 0,
-    [WindowUnit.DAY]: 0,
-    [WindowUnit.WEEK]: 0,
-    [WindowUnit.MONTH]: 0,
-    [WindowUnit.YEAR]: 0,
+    [WindowUnit.SECOND]: 1 / 1000000,
+    [WindowUnit.MINUTE]: 1 / (1000000 * 60),
+    [WindowUnit.HOUR]: 1 / (1000000 * 60 * 60),
+    [WindowUnit.DAY]: 1 / (1000000 * 60 * 60 * 24),
+    [WindowUnit.WEEK]: 1 / (1000000 * 60 * 60 * 24 * 7),
+    [WindowUnit.MONTH]: 1 / (1000000 * 60 * 60 * 24 * 30),
+    [WindowUnit.YEAR]: 1 / (1000000 * 60 * 60 * 365),
 };
 
 const WindowUnitToResolution = {
