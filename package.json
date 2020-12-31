@@ -1,0 +1,22 @@
+{
+  "name": "redis-sliding-rate-limiter",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/tests/test.ts",
+    "test": "ts-node src/tests/limiter.test.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/ioredis": "^4.17.10",
+    "@types/redis": "^2.8.28",
+    "express": "^4.17.1",
+    "ioredis": "^4.19.4",
+    "redis": "^3.0.2",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.3"
+  }
+}
