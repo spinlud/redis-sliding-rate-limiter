@@ -6,10 +6,6 @@ import {
 } from '../lua';
 
 export class RedisStrategy extends Strategy {
-    /**
-     * Load script on Redis cache and returns sha1 of the script
-     * @returns {Promise<string>}
-     */
     async loadScript(): Promise<string> {
         const args = [
             'LOAD',
@@ -17,7 +13,7 @@ export class RedisStrategy extends Strategy {
         ];
 
         return new Promise<string>((resolve, reject) => {
-            this.limiter.client.send_command('SCRIPT', args, (err, sha1) => {
+            this.limiter.client.send_command('SCRIPT', args, (err: Error | null, sha1: string) => {
                 if (err) {
                     return reject(err);
                 }
@@ -27,11 +23,6 @@ export class RedisStrategy extends Strategy {
         });
     }
 
-    /**
-     * Call script execution on Redis using EVALSHA. Loads script on Redis cache if needed.
-     * @param {any} key
-     * @returns {Promise<RateLimiterResponse>}
-     */
     async execScript(key: any): Promise<RateLimiterResponse> {
         if (!this.scriptSha1) {
             this.scriptSha1 = await this.loadScript();

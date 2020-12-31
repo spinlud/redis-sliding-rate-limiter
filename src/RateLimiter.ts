@@ -1,12 +1,10 @@
 import { WindowUnit, convertUnitToResolution, WindowUnitToMilliseconds } from './lua';
 import { Strategy, RedisStrategy, IORedisStrategy } from './strategies';
 
-type Callback = (err: Error | null, res: any) => any;
-type SendCommandAsync = (...args: any[]) => Promise<any>;
-type SendCommandCallback = (cmd: string, args?: any[], cb?: Callback) => any;
+export type SendCommand = (...args: any[]) => any;
 
-export interface RedisClient {
-    send_command: SendCommandAsync | SendCommandCallback;
+export interface RedisClientWrapper {
+    send_command: SendCommand;
 }
 
 interface RateLimiterOptions {
@@ -15,7 +13,7 @@ interface RateLimiterOptions {
      * - https://www.npmjs.com/package/redis
      * - https://www.npmjs.com/package/ioredis
      */
-    client: RedisClient;
+    client: RedisClientWrapper;
 
     /**
      * Window unit (second, minute, hour, etc)
@@ -66,7 +64,7 @@ export class RateLimiter {
     private _strategy: Strategy;
     private _tag: string = '[RateLimiter]';
 
-    client: RedisClient;
+    client: RedisClientWrapper;
     windowUnit: WindowUnit;
     windowSize: number;
     windowResolution: WindowUnit;

@@ -8,6 +8,16 @@ export abstract class Strategy {
         this.limiter = limiter;
     }
 
-    abstract loadScript(script: string): Promise<string>
+    /**
+     * Load script on Redis cache and returns sha1 of the script
+     * @returns {Promise<string>}
+     */
+    abstract loadScript(): Promise<string>
+
+    /**
+     * Call script execution on Redis using EVALSHA. Loads script on Redis cache if needed.
+     * @param {any} key
+     * @returns {Promise<RateLimiterResponse>}
+     */
     abstract execScript(key: any): Promise<RateLimiterResponse>
 }
