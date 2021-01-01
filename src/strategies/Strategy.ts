@@ -9,6 +9,14 @@ export abstract class Strategy {
     }
 
     /**
+     * Wrapper for sending command to Redis
+     * @param cmd {string} Redis command
+     * @param args {any[]} Arguments
+     * @returns {Promise<any>}
+     */
+    abstract sendCommand(cmd: string, ...args: any[]): Promise<any>
+
+    /**
      * Load script on Redis cache and returns sha1 of the script
      * @returns {Promise<string>}
      */
@@ -16,7 +24,7 @@ export abstract class Strategy {
 
     /**
      * Call script execution on Redis using EVALSHA. Loads script on Redis cache if needed.
-     * @param {any} key
+     * @param key {any}
      * @returns {Promise<RateLimiterResponse>}
      */
     abstract execScript(key: any): Promise<RateLimiterResponse>

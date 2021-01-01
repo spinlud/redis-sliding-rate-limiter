@@ -6,21 +6,25 @@ import {
 } from '../lua';
 
 export class RedisStrategy extends Strategy {
+    sendCommand(cmd: string, ...args: any[]): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+            this.limiter.client.send_command(cmd, args, (err: Error | null, res: any) => {
+                if (err) {
+                    return reject(err);
+                }
+
+                return resolve(res);
+            });
+        });
+    }
+
     async loadScript(): Promise<string> {
         const args = [
             'LOAD',
             LuaScript
         ];
 
-        return new Promise<string>((resolve, reject) => {
-            this.limiter.client.send_command('SCRIPT', args, (err: Error | null, sha1: string) => {
-                if (err) {
-                    return reject(err);
-                }
-
-                return resolve(sha1);
-            });
-        });
+        return await this.sendCommand('SCRIPT', args);
     }
 
     async execScript(key: any): Promise<RateLimiterResponse> {
@@ -38,19 +42,13 @@ export class RedisStrategy extends Strategy {
             this.limiter.limit
         ];
 
-        return new Promise<RateLimiterResponse>((resolve, reject) => {
-            this.limiter.client.send_command('EVALSHA', args, (err: Error | null, res: any | any[]) => {
-                if (err) {
-                    return reject(err);
-                }
+        const res = await this.sendCommand('EVALSHA', args);
 
-                return resolve({
-                    remaining: res[0],
-                    isAllowed: res[0] > 0,
-                    firstExpireAtMs: res[1],
-                    windowExpireAtMs: res[2]
-                });
-            })
-        });
+        return {
+            remaining: Math.max(0, res[0]),
+            isAllowed: res[0] >= 0,
+            firstExpireAtMs: res[1],
+            windowExpireAtMs: res[2]
+        };
     }
 }

@@ -36,7 +36,7 @@ const LuaScript = `
     -- Expire the whole key for cleanup (ms)
     redis.call('PEXPIRE', key, expire_ms)
     
-    return {remaining_allowed_requests, first_expire_at, window_expire_at}
+    return {remaining_allowed_requests - 1, first_expire_at, window_expire_at}
 `;
 
 export { LuaScript };

@@ -1,2 +1,2 @@
-export { RateLimiter, RateLimiterResponse } from './RateLimiter';
+export { RateLimiter, RateLimiterOptions, RateLimiterResponse } from './RateLimiter';
 export { WindowUnit } from './lua';

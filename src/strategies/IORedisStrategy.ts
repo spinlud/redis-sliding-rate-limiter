@@ -6,13 +6,17 @@ import {
 } from '../lua';
 
 export class IORedisStrategy extends Strategy {
+    async sendCommand(cmd: string, ...args: any[]): Promise<any> {
+        return await this.limiter.client.send_command(cmd, ...args);
+    }
+
     async loadScript(): Promise<string> {
         const args = [
             'LOAD',
             LuaScript
         ];
 
-        return await this.limiter.client.send_command('SCRIPT', ...args);
+        return await this.sendCommand('SCRIPT', ...args);
     }
 
     async execScript(key: any): Promise<RateLimiterResponse> {
@@ -30,11 +34,11 @@ export class IORedisStrategy extends Strategy {
             this.limiter.limit
         ];
 
-        const res: any[] = await this.limiter.client.send_command('EVALSHA', ...args);
+        const res: any[] = await this.sendCommand('EVALSHA', ...args);
 
         return {
-            remaining: res[0],
-            isAllowed: res[0] > 0,
+            remaining: Math.max(0, res[0]),
+            isAllowed: res[0] >= 0,
             firstExpireAtMs: res[1],
             windowExpireAtMs: res[2]
         };

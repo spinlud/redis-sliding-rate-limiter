@@ -7,7 +7,7 @@ export interface RedisClientWrapper {
     send_command: SendCommand;
 }
 
-interface RateLimiterOptions {
+export interface RateLimiterOptions {
     /**
      * Client object from any of the following libraries:
      * - https://www.npmjs.com/package/redis
