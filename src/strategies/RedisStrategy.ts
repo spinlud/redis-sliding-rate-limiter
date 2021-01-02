@@ -42,7 +42,22 @@ export class RedisStrategy extends Strategy {
             this.limiter.limit
         ];
 
-        const res = await this.sendCommand('EVALSHA', args);
+        let res: any;
+
+        try {
+            res = await this.sendCommand('EVALSHA', args);
+        }
+        catch(err) {
+            // Script expired in Redis cache, reload and try again
+            if (err && err.message && err.message.contains('NOSCRIPT')) {
+                this.scriptSha1 = await this.loadScript();
+                args[0] = this.scriptSha1;
+                res = await this.sendCommand('EVALSHA', ...args);
+            }
+            else {
+                throw err;
+            }
+        }
 
         return {
             remaining: Math.max(0, res[0]),
