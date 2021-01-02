@@ -91,11 +91,11 @@ export class RateLimiter {
             case 0:
             case 1:
                 this._strategy = new IORedisStrategy(this);
-                console.log(this._tag, `Switching to ${IORedisStrategy.name}`);
+                console.log(this._tag, `Using ${IORedisStrategy.name}`);
                 break;
             case 3:
                 this._strategy = new RedisStrategy(this);
-                console.log(this._tag, `Switching to ${RedisStrategy.name}`);
+                console.log(this._tag, `Using ${RedisStrategy.name}`);
                 break;
             default:
                 throw new Error('Unknown send_command signature');

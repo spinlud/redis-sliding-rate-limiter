@@ -3,17 +3,31 @@ import Redis from 'ioredis';
 import { RateLimiter, RateLimiterOptions, RateLimiterResponse, Unit } from '..';
 import { sleep } from './utils';
 
+type ValidateFn = (batchResponse: RateLimiterResponse[]) => void;
+
+interface BatchRequest {
+    size: number; // How many requests in the batch
+    delay: number; // Number of milliseconds to wait before sending the requests
+    validate: ValidateFn; // Validation routine
+}
+
+interface TestConfig {
+    limiter: RateLimiter;
+    key: string; // Redis key
+    batches: BatchRequest[];
+}
+
 function createRedisClient(): any {
     return new RedisClient({
-        host: 'localhost',
-        port: 6379
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379
     });
 }
 
 function createIORedisClient(): any {
     return new Redis({
-        host: 'localhost',
-        port: 6379
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379
     });
 }
 
@@ -27,12 +41,38 @@ async function flushRedis(limiter: RateLimiter): Promise<void> {
     await limiter._strategy.sendCommand('SLOWLOG', 'RESET');
 }
 
-function checkLimiterResponse(toCheck: RateLimiterResponse, expected: Partial<RateLimiterResponse>) {
-    expect(toCheck).toBeDefined();
-    expect(toCheck).toMatchObject(expected);
-    expect(typeof toCheck.firstExpireAtMs).toBe('number');
-    expect(typeof toCheck.windowExpireAtMs).toBe('number');
-    expect(toCheck.windowExpireAtMs).toBeGreaterThan(0);
+function validateLimiterResponse(received: RateLimiterResponse, expected: Partial<RateLimiterResponse>) {
+    expect(received).toBeDefined();
+    expect(received).toMatchObject(expected);
+    expect(typeof received.firstExpireAtMs).toBe('number');
+    expect(received.firstExpireAtMs).toBeGreaterThan(0);
+    expect(typeof received.windowExpireAtMs).toBe('number');
+    expect(received.windowExpireAtMs).toBeGreaterThan(0);
+}
+
+async function runTestConfig(config: TestConfig): Promise<void> {
+    const { limiter, key, batches } = config;
+
+    const _buildBatchPromise = async (batch: BatchRequest): Promise<RateLimiterResponse[]> => {
+        const { delay, size } = batch;
+        await sleep(delay);
+
+        const promises: Promise<RateLimiterResponse>[] = [];
+
+        for (let i = 0; i < size; ++i) {
+            promises.push(limiter.get(key));
+        }
+
+        return Promise.all(promises);
+    }
+
+    const batchPromises = batches.map(batch => _buildBatchPromise(batch));
+
+    const batchResults = await Promise.all(batchPromises);
+
+    for (let i = 0; i < batches.length; ++i) {
+        batches[i].validate(batchResults[i]);
+    }
 }
 
 describe('RateLimiter', () => {
@@ -89,64 +129,72 @@ describe('RateLimiter', () => {
 
             const key = `${tag} 10req/1sec, subdivision=decisecond`;
 
-            // 1 initial request in first decisecond of first second
-            const first = await limiter.get(key);
+            const firstBatch: BatchRequest = {
+                delay: 0,
+                size: 1,
+                validate: (res) => {
+                    const received = res[0];
 
-            // 10 requests in last decisecond of first second
-            await sleep(900);
-
-            let promises: Promise<RateLimiterResponse>[] = [];
-
-            for (let i = 0; i < 10; ++i) {
-                promises.push(limiter.get(key));
-            }
-
-            const middle = await Promise.all(promises);
-
-            // 2 requests in third decisecond of next second (initial request should be expired)
-            await sleep(300);
-
-            const last = await Promise.all([
-                limiter.get(key),
-                limiter.get(key),
-            ]);
-
-            // First check
-            checkLimiterResponse(first, {
-                isAllowed: true,
-                remaining: limiter.limit - 1,
-                firstExpireAtMs: -1
-            });
-
-            // Middle check
-            for (let i = 0; i < promises.length; ++i) {
-                const e = middle[i];
-
-                // Last request should be rejected
-                if (i === promises.length - 1) {
-                    checkLimiterResponse(e, {
-                        isAllowed: false,
-                        remaining: 0,
-                    });
-                }
-                else {
-                    checkLimiterResponse(e, {
+                    const expected: Partial<RateLimiterResponse> = {
                         isAllowed: true,
-                        remaining: limiter.limit - i - 2,
-                    });
+                        remaining: limiter.limit - 1
+                    };
+
+                    validateLimiterResponse(received, expected);
                 }
-            }
+            };
 
-            // Last check
-            checkLimiterResponse(last[0], {
-                isAllowed: true,
-                remaining: 0,
-            });
+            const secondBatch: BatchRequest = {
+                delay: 900,
+                size: 10,
+                validate: (res) => {
+                    for (let i = 0; i < 10; ++i) {
+                        const received = res[i];
 
-            checkLimiterResponse(last[1], {
-                isAllowed: false,
-                remaining: 0,
-            });
+                        const expected: Partial<RateLimiterResponse> = {
+                            isAllowed: true,
+                            remaining: Math.max(0, limiter.limit - i - 2)
+                        };
+
+                        // Last request expected to fail
+                        if (i === 9) {
+                            expected.isAllowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            const thirdBatch: BatchRequest = {
+                delay: 1100,
+                size: 2,
+                validate: (res) => {
+                    for (let i = 0; i < 2; ++i) {
+                        const received = res[i];
+
+                        const expected: Partial<RateLimiterResponse> = {
+                            isAllowed: true,
+                            remaining: 0
+                        };
+
+                        // Last request expected to fail
+                        if (i === 1) {
+                            expected.isAllowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            const config: TestConfig = {
+                limiter,
+                key,
+                batches: [firstBatch, secondBatch, thirdBatch]
+            };
+
+            await runTestConfig(config);
         });
 
         /**
@@ -170,61 +218,72 @@ describe('RateLimiter', () => {
 
             const key = `${tag} 3req/3sec, subdivision=second`;
 
-            const first = await limiter.get(key);
+            const firstBatch: BatchRequest = {
+                delay: 0,
+                size: 1,
+                validate: (res) => {
+                    const received = res[0];
 
-            await sleep(2000);
-
-            const promises: Promise<RateLimiterResponse>[] = [
-                limiter.get(key),
-                limiter.get(key),
-                limiter.get(key),
-            ];
-
-            const middle = await Promise.all(promises);
-
-            await sleep(1100);
-
-            const last = await Promise.all([
-               limiter.get(key),
-               limiter.get(key),
-            ]);
-
-            // First check
-            checkLimiterResponse(first, {
-                isAllowed: true,
-                remaining: limiter.limit - 1,
-                firstExpireAtMs: -1
-            });
-
-            // Middle check
-            for (let i = 0; i < promises.length; ++i) {
-                const e = middle[i];
-
-                // Last request should be rejected
-                if (i === promises.length - 1) {
-                    checkLimiterResponse(e, {
-                        isAllowed: false,
-                        remaining: 0,
-                    });
-                }
-                else {
-                    checkLimiterResponse(e, {
+                    const expected: Partial<RateLimiterResponse> = {
                         isAllowed: true,
-                        remaining: limiter.limit - i - 2,
-                    });
+                        remaining: limiter.limit - 1
+                    };
+
+                    validateLimiterResponse(received, expected);
                 }
-            }
+            };
 
-            // Last check
-            checkLimiterResponse(last[0], {
-                isAllowed: true,
-                remaining: 0,
-            });
+            const secondBatch: BatchRequest = {
+                delay: 2000,
+                size: 3,
+                validate: (res) => {
+                    for (let i = 0; i < 3; ++i) {
+                        const received = res[i];
 
-            checkLimiterResponse(last[1], {
-                isAllowed: false,
-                remaining: 0,
-            });
+                        const expected: Partial<RateLimiterResponse> = {
+                            isAllowed: true,
+                            remaining: Math.max(0, limiter.limit - i - 2)
+                        };
+
+                        // Last request expected to fail
+                        if (i === 2) {
+                            expected.isAllowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            const thirdBatch: BatchRequest = {
+                delay: 3100,
+                size: 2,
+                validate: (res) => {
+                    for (let i = 0; i < 2; ++i) {
+                        const received = res[i];
+
+                        const expected: Partial<RateLimiterResponse> = {
+                            isAllowed: true,
+                            remaining: 0
+                        };
+
+                        // Last request expected to fail
+                        if (i === 1) {
+                            expected.isAllowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            const config: TestConfig = {
+                limiter,
+                key,
+                batches: [firstBatch, secondBatch, thirdBatch]
+            };
+
+            await runTestConfig(config);
         });
 
         /**
@@ -232,7 +291,7 @@ describe('RateLimiter', () => {
          *
          * 10 requests every decisecond: expected succeded=10 failed=0.
          */
-        it.only(`${tag} 10req/1decisec, subdivision=decisecond`, async () => {
+        it(`${tag} 10req/1decisec, subdivision=decisecond`, async () => {
             const limiter = new RateLimiter({
                 client: client,
                 windowUnit: Unit.DECISECOND,
@@ -245,51 +304,42 @@ describe('RateLimiter', () => {
             await flushRedis(limiter);
 
             const key = `${tag} 10req/1decisec, subdivision=decisecond`;
-            const subdivisionsToTest = 50;
-            const requestsPerSubdivision = 10;
-
-            // let res: RateLimiterResponse[] = [];
-
-            const _buildSubdivisionRequests = async (key: string, delay: number): Promise<RateLimiterResponse[]> => {
-                await sleep(delay);
-
-                const promises: Promise<RateLimiterResponse>[] = [];
-
-                for (let i = 0; i < requestsPerSubdivision; ++i) {
-                    promises.push(limiter.get(key));
-                }
-
-                return Promise.all(promises);
-            }
-
-            const promises: Promise<RateLimiterResponse[]>[] = [];
-            const delayTimeIncrMs = 100;
+            const numBatches = 50;
+            const batchSize = 10;
+            const batches: BatchRequest[] = [];
+            const delayTimeIncrMs = 100; // Increase delay of 1 decisecond for each batch
             let delay = 0;
 
-            for (let i = 0; i < subdivisionsToTest; ++i) {
-                promises.push(_buildSubdivisionRequests(key, delay));
-                delay += delayTimeIncrMs;
-            }
-
-            const all = await Promise.all(promises);
-
-            all.forEach(batch => {
-                for (let i = 0; i < batch.length; ++i) {
-                    const e = batch[i];
+            const _validateBatch: ValidateFn = (res) => {
+                for (let i = 0; i < batchSize; ++i) {
+                    const received = res[i];
 
                     const expected: Partial<RateLimiterResponse> = {
                         isAllowed: true,
                         remaining: limiter.limit - i - 1,
                     };
 
-                    // First request
-                    if (i === 0) {
-                        expected.firstExpireAtMs = -1;
-                    }
-
-                    checkLimiterResponse(e, expected);
+                    validateLimiterResponse(received, expected);
                 }
-            });
+            }
+
+            for (let i = 0; i < numBatches; ++i) {
+                batches.push({
+                    size: batchSize,
+                    delay: delay,
+                    validate: _validateBatch
+                });
+
+                delay += delayTimeIncrMs;
+            }
+
+            const config: TestConfig = {
+                limiter,
+                key,
+                batches
+            };
+
+            await runTestConfig(config);
         });
     }
 });
