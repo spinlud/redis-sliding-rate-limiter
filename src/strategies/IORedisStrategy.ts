@@ -2,7 +2,7 @@ import { Strategy } from './Strategy';
 import { RateLimiterResponse } from '../RateLimiter';
 import {
     LuaScript,
-    MicrosecondsToWindowResolution,
+    MicrosecondsToWindowSubdivision,
 } from '../lua';
 
 export class IORedisStrategy extends Strategy {
@@ -29,7 +29,7 @@ export class IORedisStrategy extends Strategy {
             1, // number of keys
             key,
             this.limiter.window,
-            MicrosecondsToWindowResolution[this.limiter.windowResolution],
+            MicrosecondsToWindowSubdivision[this.limiter.windowSubdivisionUnit],
             this.limiter.windowExpireMs,
             this.limiter.limit
         ];

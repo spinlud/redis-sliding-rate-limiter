@@ -1,6 +1,6 @@
 import { RedisClient } from 'redis';
 import Redis from 'ioredis';
-import { RateLimiter, RateLimiterOptions, RateLimiterResponse, WindowUnit } from '..';
+import { RateLimiter, RateLimiterOptions, RateLimiterResponse, Unit } from '..';
 import { sleep } from './utils';
 
 function createRedisClient(): any {
@@ -58,14 +58,21 @@ describe('RateLimiter', () => {
     for (const { client, name } of clients) {
         const tag = `[${name}]`;
 
+        /**
+         * 1 request in the first decisecond (first second): expected succeded=1 failed=0.
+         * 10 requests in the last decisecond (first second): expected succeded=9 failed=1.
+         * 2 requests in the third decisecond (second second): expected succeded=1 failed=1.
+         */
         it(`${tag} 10/sec, resolution=decisecond`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: WindowUnit.SECOND,
+                windowUnit: Unit.SECOND,
                 windowSize: 1,
-                windowResolution: WindowUnit.DECISECOND,
+                windowSubdivisionUnit: Unit.DECISECOND,
                 limit: 10
             });
+
+            console.log('' + limiter);
 
             // Flush all keys
             // @ts-ignore

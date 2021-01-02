@@ -1,7 +1,7 @@
 export { LuaScript } from './script';
 export {
-    WindowUnit,
+    Unit,
     WindowUnitToMilliseconds,
-    MicrosecondsToWindowResolution,
-    convertUnitToResolution,
+    MicrosecondsToWindowSubdivision,
+    convertWindowUnitToSubdivision,
 } from './utils';
