@@ -1,7 +1,7 @@
-import { RedisClient } from 'redis';
+import {RedisClient} from 'redis';
 import Redis from 'ioredis';
-import { RateLimiter, RateLimiterOptions, RateLimiterResponse, Unit } from '..';
-import { sleep } from './utils';
+import {RateLimiter, RateLimiterResponse, Unit} from '..';
+import {sleep} from './utils';
 
 type ValidateFn = (batchResponse: RateLimiterResponse[]) => void;
 
@@ -547,6 +547,102 @@ describe('RateLimiter', () => {
             expect(firstExpireAtMsDelta).toBeGreaterThan(0);
             expect(windowExpireAtMsDelta).toBeGreaterThan(0);
             expect(windowExpireAtMsDelta).toBeGreaterThan(firstExpireAtMsDelta);
+        });
+
+        /**
+         * Test conversions
+         */
+        it(`${tag} Conversions`, () => {
+            const limit = 3;
+
+            let limiter = new RateLimiter({
+                client,
+                limit,
+                windowUnit: Unit.MINUTE,
+                windowSize: 1
+            });
+
+            let { window, windowExpireMs } = limiter;
+
+            expect(window).toBe(1);
+            expect(windowExpireMs).toBe(1000 * 60);
+
+            limiter = new RateLimiter({
+                client,
+                limit,
+                windowUnit: Unit.MINUTE,
+                windowSize: 2,
+                windowSubdivisionUnit: Unit.SECOND
+            });
+
+            ({ window, windowExpireMs } = limiter);
+
+            expect(window).toBe(60 * 2);
+            expect(windowExpireMs).toBe(1000 * 60 * 2);
+
+            limiter = new RateLimiter({
+                client,
+                limit,
+                windowUnit: Unit.MINUTE,
+                windowSize: 5,
+                windowSubdivisionUnit: Unit.CENTISECOND
+            });
+
+            ({ window, windowExpireMs } = limiter);
+
+            expect(window).toBe(10 * 10 * 60 * 5);
+            expect(windowExpireMs).toBe(1000 * 60 * 5);
+
+            limiter = new RateLimiter({
+                client,
+                limit,
+                windowUnit: Unit.HOUR,
+                windowSize: 1,
+                windowSubdivisionUnit: Unit.MINUTE
+            });
+
+            ({ window, windowExpireMs } = limiter);
+
+            expect(window).toBe(60);
+            expect(windowExpireMs).toBe(1000 * 60 * 60);
+
+            limiter = new RateLimiter({
+                client,
+                limit,
+                windowUnit: Unit.HOUR,
+                windowSize: 1,
+                windowSubdivisionUnit: Unit.SECOND
+            });
+
+            ({ window, windowExpireMs } = limiter);
+
+            expect(window).toBe(60 * 60);
+            expect(windowExpireMs).toBe(1000 * 60 * 60);
+
+            limiter = new RateLimiter({
+                client,
+                limit,
+                windowUnit: Unit.HOUR,
+                windowSize: 3,
+                windowSubdivisionUnit: Unit.DECISECOND
+            });
+
+            ({ window, windowExpireMs } = limiter);
+
+            expect(window).toBe(10 * 60 * 60 * 3);
+            expect(windowExpireMs).toBe(1000 * 60 * 60 * 3);
+
+            const createLimiter = () => {
+                return new RateLimiter({
+                    client,
+                    limit,
+                    windowUnit: Unit.SECOND,
+                    windowSize: 1,
+                    windowSubdivisionUnit: Unit.MINUTE
+                });
+            }
+
+            expect(createLimiter).toThrow('Window subdivision must be lower or equal to the window unit');
         });
     }
 });
