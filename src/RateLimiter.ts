@@ -84,11 +84,11 @@ export class RateLimiter {
             throw new Error(`Missing required property 'client'`);
         }
 
-        if (!options.windowUnit) {
+        if (!options.hasOwnProperty('windowUnit')) {
             throw new Error(`Missing required property 'windowUnit'`);
         }
 
-        if (!options.windowSize) {
+        if (!options.hasOwnProperty('windowSize')) {
             throw new Error(`Missing required property 'windowSize'`);
         }
 
@@ -96,7 +96,7 @@ export class RateLimiter {
             throw new Error(`Invalid or missing required property 'limit'`);
         }
 
-        if (options.windowSubdivisionUnit && options.windowSubdivisionUnit > options.windowUnit) {
+        if (options.hasOwnProperty('windowSubdivisionUnit') && options.windowSubdivisionUnit! > options.windowUnit) {
             throw new Error(`Window subdivision must be lower or equal to the window unit`);
         }
 
