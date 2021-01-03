@@ -98,7 +98,7 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
 
     // Validation
     if (options.limiters.some(e => (!e.hasOwnProperty('key') || !e.key || e.overrideKey) && !options.overrideKeyFn)) {
-        throw new Error(`Property overrideKeyFn must be defined if a limiter has an unspecified key with override enabled`);
+        throw new Error(`Property overrideKeyFn must be defined if a limiter has an unspecified key or overrideKey is enabled`);
     }
 
     return async (req: Request, res: Response, next: NextFunction) => {
