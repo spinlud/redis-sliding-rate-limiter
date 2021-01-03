@@ -48,7 +48,7 @@ export interface RateLimiterResponse {
     /**
      * Whether the request is allowed or not
      */
-    isAllowed: boolean;
+    allowed: boolean;
 
     /**
      * Epoch (milliseconds) at which the first element will expire in the current window

@@ -50,7 +50,7 @@ function validateLimiterResponse(received: RateLimiterResponse, expected: Partia
     expect(received.windowExpireAtMs).toBeGreaterThan(0);
 }
 
-async function runTestConfig(config: TestConfig): Promise<void> {
+async function runTestConfig(config: TestConfig): Promise<RateLimiterResponse[][]> {
     const { limiter, key, batches } = config;
 
     const _buildBatchPromise = async (batch: BatchRequest): Promise<RateLimiterResponse[]> => {
@@ -73,6 +73,8 @@ async function runTestConfig(config: TestConfig): Promise<void> {
     for (let i = 0; i < batches.length; ++i) {
         batches[i].validate(batchResults[i]);
     }
+
+    return batchResults;
 }
 
 describe('RateLimiter', () => {
@@ -136,7 +138,7 @@ describe('RateLimiter', () => {
                     const received = res[0];
 
                     const expected: Partial<RateLimiterResponse> = {
-                        isAllowed: true,
+                        allowed: true,
                         remaining: limiter.limit - 1
                     };
 
@@ -152,13 +154,13 @@ describe('RateLimiter', () => {
                         const received = res[i];
 
                         const expected: Partial<RateLimiterResponse> = {
-                            isAllowed: true,
+                            allowed: true,
                             remaining: Math.max(0, limiter.limit - i - 2)
                         };
 
                         // Last request expected to fail
                         if (i === 9) {
-                            expected.isAllowed = false;
+                            expected.allowed = false;
                         }
 
                         validateLimiterResponse(received, expected);
@@ -174,13 +176,13 @@ describe('RateLimiter', () => {
                         const received = res[i];
 
                         const expected: Partial<RateLimiterResponse> = {
-                            isAllowed: true,
+                            allowed: true,
                             remaining: 0
                         };
 
                         // Last request expected to fail
                         if (i === 1) {
-                            expected.isAllowed = false;
+                            expected.allowed = false;
                         }
 
                         validateLimiterResponse(received, expected);
@@ -225,7 +227,7 @@ describe('RateLimiter', () => {
                     const received = res[0];
 
                     const expected: Partial<RateLimiterResponse> = {
-                        isAllowed: true,
+                        allowed: true,
                         remaining: limiter.limit - 1
                     };
 
@@ -241,13 +243,13 @@ describe('RateLimiter', () => {
                         const received = res[i];
 
                         const expected: Partial<RateLimiterResponse> = {
-                            isAllowed: true,
+                            allowed: true,
                             remaining: Math.max(0, limiter.limit - i - 2)
                         };
 
                         // Last request expected to fail
                         if (i === 2) {
-                            expected.isAllowed = false;
+                            expected.allowed = false;
                         }
 
                         validateLimiterResponse(received, expected);
@@ -263,13 +265,13 @@ describe('RateLimiter', () => {
                         const received = res[i];
 
                         const expected: Partial<RateLimiterResponse> = {
-                            isAllowed: true,
+                            allowed: true,
                             remaining: 0
                         };
 
                         // Last request expected to fail
                         if (i === 1) {
-                            expected.isAllowed = false;
+                            expected.allowed = false;
                         }
 
                         validateLimiterResponse(received, expected);
@@ -315,8 +317,8 @@ describe('RateLimiter', () => {
                     const received = res[i];
 
                     const expected: Partial<RateLimiterResponse> = {
-                        isAllowed: true,
-                        remaining: limiter.limit - i - 1,
+                        allowed: true,
+                        remaining: Math.max(0, limiter.limit - i - 1),
                     };
 
                     validateLimiterResponse(received, expected);
@@ -340,6 +342,211 @@ describe('RateLimiter', () => {
             };
 
             await runTestConfig(config);
+        });
+
+        /**
+         * 1000 requests per 1 second with subdivision at second.
+         *
+         * 1003 requests every second: expected succeded=1000 failed=3.
+         */
+        it(`${tag} 1000req/1sec, subdivision=second`, async () => {
+            const limiter = new RateLimiter({
+                client: client,
+                windowUnit: Unit.SECOND,
+                windowSize: 1,
+                windowSubdivisionUnit: Unit.SECOND,
+                limit: 1000
+            });
+
+            // Flush Redis
+            await flushRedis(limiter);
+
+            const key = `${tag} 1000req/1sec, subdivision=second`;
+            const numBatches = 3;
+            const batchSize = 1003;
+            const batches: BatchRequest[] = [];
+            const delayTimeIncrMs = 1000; // Increase delay of 1 second for each batch
+            let delay = 0;
+
+            const _validateBatch: ValidateFn = (res) => {
+                for (let i = 0; i < batchSize; ++i) {
+                    const received = res[i];
+
+                    const expected: Partial<RateLimiterResponse> = {
+                        allowed: true,
+                        remaining: Math.max(0, limiter.limit - i - 1),
+                    };
+
+                    // Expect last 3 requests to fail
+                    if (i >= limiter.limit) {
+                        expected.allowed = false;
+                    }
+
+                    validateLimiterResponse(received, expected);
+                }
+            }
+
+            for (let i = 0; i < numBatches; ++i) {
+                batches.push({
+                    size: batchSize,
+                    delay: delay,
+                    validate: _validateBatch
+                });
+
+                delay += delayTimeIncrMs;
+            }
+
+            const config: TestConfig = {
+                limiter,
+                key,
+                batches
+            };
+
+            await runTestConfig(config);
+        });
+
+        /**
+         * Test first member and window expiration timestamps - 3req/2sec, subdivision=second.
+         *
+         * 1 request in the first second: expected succeded=1 failed=0.
+         * 3 requests in the second second: expected succeded=2 failed=1.
+         * 2 requests at the first member timestamp: expected succeded=1 failed=1.
+         */
+        it(`${tag} First member and window expiration timestamps - 3req/2sec, subdivision=second`, async () => {
+            const limiter = new RateLimiter({
+                client: client,
+                windowUnit: Unit.SECOND,
+                windowSize: 2,
+                windowSubdivisionUnit: Unit.SECOND,
+                limit: 3
+            });
+
+            // Flush Redis
+            await flushRedis(limiter);
+
+            const key = `${tag} First member and window expiration timestamps - 3req/2sec, subdivision=second`;
+
+            const firstBatch: BatchRequest = {
+                delay: 0,
+                size: 1,
+                validate: (res) => {
+                    const received = res[0];
+
+                    const expected: Partial<RateLimiterResponse> = {
+                        allowed: true,
+                        remaining: limiter.limit - 1
+                    };
+
+                    validateLimiterResponse(received, expected);
+                }
+            };
+
+            const secondBatch: BatchRequest = {
+                delay: 1000,
+                size: 3,
+                validate: (res) => {
+                    for (let i = 0; i < 3; ++i) {
+                        const received = res[i];
+
+                        const expected: Partial<RateLimiterResponse> = {
+                            allowed: true,
+                            remaining: Math.max(0, limiter.limit - i - 2),
+                        };
+
+                        // Expect last request to fail
+                        if (i === 2) {
+                            expected.allowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            let batches = [firstBatch, secondBatch];
+
+            let config: TestConfig = {
+                limiter,
+                key,
+                batches
+            };
+
+            let batchResults = await runTestConfig(config);
+
+            // Test first member expiration timestamp (from last request)
+            let lastBatchResult = batchResults[batchResults.length - 1];
+            let { firstExpireAtMs } = lastBatchResult[lastBatchResult.length - 1];
+            let firstExpireAtMsDelta = firstExpireAtMs - Date.now();
+
+            const thirdBatch: BatchRequest = {
+                delay: firstExpireAtMsDelta,
+                size: 2,
+                validate: (res) => {
+                    for (let i = 0; i < 2; ++i) {
+                        const received = res[i];
+
+                        const expected: Partial<RateLimiterResponse> = {
+                            allowed: true,
+                            remaining: 0,
+                        };
+
+                        // Expect last request to fail
+                        if (i === 1) {
+                            expected.allowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            batches = [thirdBatch];
+
+            config = {
+                limiter,
+                key,
+                batches
+            };
+
+            batchResults = await runTestConfig(config);
+
+            // Test window expiration timestamp (from last request)
+            lastBatchResult = batchResults[batchResults.length - 1];
+            firstExpireAtMs = lastBatchResult[lastBatchResult.length - 1].firstExpireAtMs;
+            let windowExpireAtMs = lastBatchResult[lastBatchResult.length - 1].windowExpireAtMs;
+            firstExpireAtMsDelta = firstExpireAtMs - Date.now();
+            const windowExpireAtMsDelta = windowExpireAtMs - Date.now();
+
+            const fourthBatch: BatchRequest = {
+                delay: windowExpireAtMsDelta,
+                size: limiter.limit,
+                validate: (res) => {
+                    for (let i = 0; i < limiter.limit; ++i) {
+                        const received = res[i];
+
+                        const expected: Partial<RateLimiterResponse> = {
+                            allowed: true,
+                            remaining: Math.max(0, limiter.limit - i - 1),
+                        };
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            batches = [fourthBatch];
+
+            config = {
+                limiter,
+                key,
+                batches
+            };
+
+            await runTestConfig(config);
+
+            expect(firstExpireAtMsDelta).toBeGreaterThan(0);
+            expect(windowExpireAtMsDelta).toBeGreaterThan(0);
+            expect(windowExpireAtMsDelta).toBeGreaterThan(firstExpireAtMsDelta);
         });
     }
 });

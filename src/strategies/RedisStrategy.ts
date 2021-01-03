@@ -61,7 +61,7 @@ export class RedisStrategy extends Strategy {
 
         return {
             remaining: Math.max(0, res[0]),
-            isAllowed: res[0] >= 0,
+            allowed: res[0] >= 0,
             firstExpireAtMs: res[1],
             windowExpireAtMs: res[2]
         };
