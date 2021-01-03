@@ -80,6 +80,22 @@ export class RateLimiter {
     private _name: string;
 
     constructor(options: RateLimiterOptions) {
+        if (!options.client) {
+            throw new Error(`Missing required property 'client'`);
+        }
+
+        if (!options.windowUnit) {
+            throw new Error(`Missing required property 'windowUnit'`);
+        }
+
+        if (!options.windowSize) {
+            throw new Error(`Missing required property 'windowSize'`);
+        }
+
+        if (!options.limit || options.limit <= 0) {
+            throw new Error(`Invalid or missing required property 'limit'`);
+        }
+
         if (options.windowSubdivisionUnit && options.windowSubdivisionUnit > options.windowUnit) {
             throw new Error(`Window subdivision must be lower or equal to the window unit`);
         }
