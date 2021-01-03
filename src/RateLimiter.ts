@@ -37,6 +37,11 @@ export interface RateLimiterOptions {
      * Number of requests allowed in the window (eg 10 requests per 1 second)
      */
     limit: number;
+
+    /**
+     * Optional name for this limiter
+     */
+    name?: string;
 }
 
 export interface RateLimiterResponse {
@@ -72,6 +77,7 @@ export class RateLimiter {
     private _limit: number;
     private _window: number;
     private _windowExpireMs: number;
+    private _name: string;
 
     constructor(options: RateLimiterOptions) {
         if (options.windowSubdivisionUnit && options.windowSubdivisionUnit > options.windowUnit) {
@@ -85,6 +91,7 @@ export class RateLimiter {
         this._limit = options.limit;
         this._window = convertWindowUnitToSubdivision(this._windowUnit, this._windowSubdivisionUnit) * this._windowSize;
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;
+        this._name = options.name ?? `${this.windowUnit}_${this.windowSize}_${this.windowSubdivisionUnit}`;
 
         // Switch strategy based on send_command signature
         switch (this._client.send_command.length) {
@@ -165,6 +172,14 @@ export class RateLimiter {
 
     public get windowExpireMs() {
         return this._windowExpireMs;
+    }
+
+    public get name() {
+        return this._name;
+    }
+
+    public set name(v) {
+        this._name = v;
     }
 
     public toString(): string {
