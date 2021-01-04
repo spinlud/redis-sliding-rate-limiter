@@ -1,0 +1,31 @@
+name: ci
+on: [push]
+
+jobs:
+  container-job:
+    runs-on: ubuntu-latest
+    container: node:12.20-buster-slim
+
+    services:
+      redis:
+        image: redis
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Test
+        run: npm run test -- --runInBand
+        env:
+          REDIS_HOST: redis
+          REDIS_PORT: 6379
