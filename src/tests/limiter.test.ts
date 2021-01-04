@@ -312,7 +312,6 @@ describe('RateLimiter', () => {
 
                     const expected: Partial<RateLimiterResponse> = {
                         allowed: true,
-                        remaining: Math.max(0, limiter.limit - i - 1),
                     };
 
                     // Expect last 3 requests to fail
