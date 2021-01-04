@@ -57,6 +57,7 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('../../build/inde
         },
     });
 
+    // Plug-in the middleware
     app.use(middleware);
 
     app.get('/', (req, res) => {

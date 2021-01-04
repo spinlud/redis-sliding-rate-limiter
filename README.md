@@ -15,18 +15,17 @@
 
 ## Why another rate limiter?
 Naive rate limiter algorithms suffer from a well known problem where a burst of requests at the window boundary will
-likely cause the limiter to allow more requests than what is expected for a particular key. For example, with a limit
+cause the limiter allowing more requests than what is expected for a particular key. For example, with a limit
 of 100 requests per minute, a client could send 100 requests in the last second of the first minute and another 100 
-requests in the first second of the second minute, resulting in 200 accepted requests in 2 seconds. <br>
+requests in the first second of the second minute, resulting in 200 accepted requests in 2 seconds.
 This library supports a flexible sliding window algorithm based on Redis backend which solves this problem efficiently.
-
-Specifically, the following features are supported:
+The main features are the following:
 
 * Limiter window can be defined with arbitrary size and precision, from years down to milliseconds 
   (e.g. a window of 3 seconds with decisecond precision or a window of 5 minutes with second precision).
 * Fast (average of 0.08 ms).
-* Each request is added to the window with microsecond precision, avoiding losing count of concurrent requests for a
-  particular key.
+* Each request is added to the current window with microsecond precision, avoiding losing count of concurrent requests
+  for a particular key.
 * Redis server clock is used as the single source of truth for any time calculation.  
 * For each request, expiration timestamps of the current window and the first element in that window are
   returned to the client. This means that the client can know precisely when a free slot will be available or when 
@@ -59,7 +58,7 @@ const { RateLimiter, Unit } = require('redis-sliding-rate-limiter');
     client: client,
     windowUnit: Unit.SECOND,
     windowSize: 3,
-    windowSubdivisionUnit: Unit.DECISECOND,
+    windowSubdivisionUnit: Unit.DECISECOND, // Defines with which precision elements would expire in the current window
     limit: 2,
   });
 
@@ -87,7 +86,8 @@ const { RateLimiter, Unit } = require('redis-sliding-rate-limiter');
 
 ## Express middleware
 The library exposes a configurable middleware factory that you can use directly in your 
-[Express](https://www.npmjs.com/package/express) application. See the following example:
+[Express](https://www.npmjs.com/package/express) application. <br>
+See the following example:
 
 ```js
 const express = require('express');
@@ -149,6 +149,7 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
         },
     });
 
+    // Plug-in the middleware
     app.use(middleware);
 
     app.get('/', (req, res) => {

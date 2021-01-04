@@ -26,9 +26,7 @@ export interface RateLimiterOptions {
     windowSize: number;
 
     /**
-     * Specify the granularity of the window. This will impact on the number of elements stored per key.
-     * For example a window of 1 minute with seconds subdivision will store a maximum of 60 elements per key,
-     * while a window of 1 second with decisecond subdivision will store a maximum of 10 elements per key.
+     * Specify the granularity of the window, i.e. with which precision elements would expire in the current window.
      * Must be less or equal than window unit.
      */
     windowSubdivisionUnit?: Unit;
