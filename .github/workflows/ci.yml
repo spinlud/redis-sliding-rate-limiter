@@ -24,7 +24,7 @@ jobs:
         run: npm install
 
       - name: Build
-        run: npm ruun build
+        run: npm run build
 
       - name: Test
         run: npm run test -- --runInBand
