@@ -134,12 +134,13 @@ describe('Express middleware', () => {
             {
                 limiter: new RateLimiter({
                     client,
-                    limit: 3,
+                    limit: 1, // This will be overridden
                     windowUnit: Unit.MINUTE,
                     windowSize: 1
                 }),
                 key: 'xpollos',
                 overrideKey: true,
+                overrideLimit: true,
                 errorMessage: errorMessage
             },
         ];
@@ -153,6 +154,9 @@ describe('Express middleware', () => {
             limiters: limiters,
             overrideKeyFn: (req, limiter) => {
                 return limiter.name;
+            },
+            overrideLimitFn: (req, limiter) => {
+                return 3;
             }
         });
 
