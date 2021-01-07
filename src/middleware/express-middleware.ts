@@ -35,6 +35,11 @@ export interface MiddlewareLimiter {
     overrideKey?: boolean;
 
     /**
+     * Enable/disable limit override. Default is false.
+     */
+    overrideLimit?: boolean;
+
+    /**
      * Custom error message for this limiter. Default is 'Too many requests'.
      */
     errorMessage?: string | object;
@@ -54,6 +59,11 @@ interface ExpressMiddlewareOptions {
     overrideKeyFn?: (req: Request, limiter: RateLimiter) => any;
 
     /**
+     * If enabled, this will override limiter limit value.
+     */
+    overrideLimitFn?: (req: Request, limiter: RateLimiter) => number;
+
+    /**
      * Status code to be returned if request is throttled (default is 429).
      */
     errorStatusCode?: number;
@@ -70,10 +80,14 @@ interface ExpressMiddlewareOptions {
     headers?: HeaderKeys | ((req: Request, limiter: RateLimiter) => HeaderKeys);
 }
 
-const normalize = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions => {
+const normalizeOptions = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions => {
     for (const e of options.limiters) {
         if (!e.hasOwnProperty('overrideKey')) {
             e.overrideKey = false;
+        }
+
+        if (!e.hasOwnProperty('overrideLimit')) {
+            e.overrideLimit = false;
         }
 
         if (!e.hasOwnProperty('errorMessage') || !e.errorMessage) {
@@ -92,18 +106,33 @@ const normalize = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions 
     return options;
 }
 
-export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
-    // Normalize options
-    options = normalize(options);
-
-    // Validation
+const validateOptions = (options: ExpressMiddlewareOptions) => {
     if (options.limiters.some(e => (!e.hasOwnProperty('key') || !e.key || e.overrideKey) && !options.overrideKeyFn)) {
         throw new Error(`Property overrideKeyFn must be defined if a limiter has an unspecified key or overrideKey is enabled`);
     }
 
+    if (options.limiters.some(e => e.overrideLimit) && !options.overrideLimitFn) {
+        throw new Error(`Property overrideLimitFn must be defined if a limiter has overrideLimit enabled`);
+    }
+}
+
+export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
+    // Normalize options
+    options = normalizeOptions(options);
+
+    // Validate options
+    validateOptions(options);
+
     return async (req: Request, res: Response, next: NextFunction) => {
-        for (const { limiter, key, overrideKey, errorMessage } of options.limiters) {
+        for (const { limiter, key, overrideKey, overrideLimit, errorMessage } of options.limiters) {
+            // Get Redis key
             const redisKey = overrideKey ? options.overrideKeyFn!(req, limiter) : key;
+
+            // Override limit if enabled
+            if (overrideLimit) {
+                limiter.limit = options.overrideLimitFn!(req, limiter);
+            }
+
             const { allowed, remaining, firstExpireAtMs, windowExpireAtMs } = await limiter.get(redisKey);
 
             // Set response headers if enabled

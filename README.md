@@ -121,9 +121,10 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
                     client: client,
                     windowUnit: Unit.HOUR,
                     windowSize: 1,
-                    limit: 10000,
+                    limit: 10000, // This will be overridden
                     windowSubdivisionUnit: Unit.MINUTE,
                 }),
+                overrideLimit: true,
                 errorMessage: '[Hourly] Too many requests',
             },
         ],
@@ -131,6 +132,11 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
         // Compute Redis key from request and limiter objects
         overrideKeyFn: (req, limiter) => {
             return req.path + limiter.name;
+        },
+      
+        // Override limiter limit if enabled
+        overrideLimitFn: (req, limiter) => {
+            return parseInt(req.query.limit); // Make sure this function returns a positive integer...    
         },
 
         // Error status code
