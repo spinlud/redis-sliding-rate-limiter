@@ -94,6 +94,12 @@ interface ExpressMiddlewareOptions {
      * Default will use the string 'X-Rate-Limit-[Remaining|First-Expire|Window-Expire]-' concatenated with the limiter name.
      */
     headers?: HeaderKeys | ((req: Request, limiter: RateLimiter) => HeaderKeys);
+
+    /**
+     * Optional function for deciding to skip rate limiting for the request. Useful for white-listing requests.
+     * Return true if the request should be skipped, false otherwise.
+     */
+    skipFn?: (req: Request) => boolean;
 }
 
 const normalizeOptions = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions => {
@@ -144,7 +150,20 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
     validateOptions(options);
 
     return async (req: Request, res: Response, next: NextFunction) => {
-        for (const { limiter, key, overrideKey, overrideKeyFn, overrideLimit, overrideLimitFn, errorMessage } of options.limiters) {
+        // Check if request should be skipped
+        if (options.skipFn && options.skipFn!(req)) {
+            return next();
+        }
+
+        for (const {
+            limiter,
+            key,
+            overrideKey,
+            overrideKeyFn,
+            overrideLimit,
+            overrideLimitFn,
+            errorMessage
+        } of options.limiters) {
             // Get Redis key
             let redisKey: any;
 

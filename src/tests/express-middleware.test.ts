@@ -220,5 +220,56 @@ describe('Express middleware', () => {
             expect(headers).toHaveProperty(windowExpireHeaderKey);
         }
     });
+
+    /**
+     * Skip (whitelist) requests
+     */
+    it('Skip (whitelist) requests', async () => {
+        const app = express();
+        const request = supertest(app);
+        const prayer = 'SkipMePlease';
+
+        const limiters: MiddlewareLimiter[] = [
+            {
+                limiter: new RateLimiter({
+                    client,
+                    limit: 1,
+                    windowUnit: Unit.MINUTE,
+                    windowSize: 1
+                }),
+                key: 'whitelist',
+            }
+        ];
+
+        // Flush Redis
+        for (const { limiter } of limiters) {
+            await flushRedis(limiter);
+        }
+
+        const middleware = createExpressMiddleware({
+            limiters: limiters,
+            skipFn: (req) => {
+                return !!(req.query && req.query.prayer && req.query.prayer === prayer);
+            }
+        });
+
+        app.use(middleware);
+
+        app.get('/', (req, res) => {
+            return res.send();
+        });
+
+        const res = await Promise.all([
+            request.get('/').query({ prayer }),
+            request.get('/').query({ prayer }),
+            request.get('/').query({ prayer }),
+        ]);
+
+        for (let i = 0; i < res.length; ++i) {
+            const { text, status } = res[i];
+            expect(text).toBe('');
+            expect(status).toBe(200);
+        }
+    });
 });
 

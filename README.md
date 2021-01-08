@@ -113,6 +113,10 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
                     limit: 5,
                 }),
                 overrideKey: true,
+                // Compute Redis key from request and limiter objects. Can also be defined at middleware level (see below).
+                overrideKeyFn: (req, limiter) => {
+                  return req.path + limiter.name;
+                },
                 key: 'This key will be overridden',
                 errorMessage: '[Peak] Too many requests',
             },
@@ -125,18 +129,24 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
                     windowSubdivisionUnit: Unit.MINUTE,
                 }),
                 overrideLimit: true,
+                // Override limit if enabled. Can also be defined at middleware level (see below).
+                overrideLimitFn: (req, limiter) => {
+                  return parseInt(req.query.limit); // Make sure this function returns a positive integer...    
+                },
                 errorMessage: '[Hourly] Too many requests',
             },
         ],
 
-        // Compute Redis key from request and limiter objects
+        // Middleware level key override. 
+        // Fallback in case a limiter does not provide a overrideKeyFn function and has overrideKey enabled.
         overrideKeyFn: (req, limiter) => {
-            return req.path + limiter.name;
+            return 'some key';
         },
       
-        // Override limiter limit if enabled
+        // Middleware level limit override.
+        // Fallback in case a limiter does not provide a overrideLimitFn function and has overrideLimit enabled.
         overrideLimitFn: (req, limiter) => {
-            return parseInt(req.query.limit); // Make sure this function returns a positive integer...    
+            return 666;    
         },
 
         // Error status code
@@ -153,6 +163,11 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
                 windowExpireAt: `X-Rate-Limit-Window-Expire-${limiter.name}`,
             };
         },
+
+        // Skip (whitelist) requests
+        skip: (req) => {
+            return req.pleaseSkipMe;      
+        }
     });
 
     // Plug-in the middleware
