@@ -35,9 +35,24 @@ export interface MiddlewareLimiter {
     overrideKey?: boolean;
 
     /**
+     * Compute Redis key from request object and limiter.
+     * If keyOverride is enabled in the limiter, this will override any key defined for that limiter.
+     * This takes priority over middleware option overrideKeyFn.
+     * Must be defined if overrideKey is enabled and middleware option overrideKeyFn is undefined.
+     */
+    overrideKeyFn?: (req: Request, limiter: RateLimiter) => any;
+
+    /**
      * Enable/disable limit override. Default is false.
      */
     overrideLimit?: boolean;
+
+    /**
+     * If enabled, this will override limiter limit value.
+     * This takes priority over middleware option overrideLimitFn.
+     * Must be defined if overrideLimit is enabled and middleware option overrideLimitFn is undefined.
+     */
+    overrideLimitFn?: (req: Request, limiter: RateLimiter) => number;
 
     /**
      * Custom error message for this limiter. Default is 'Too many requests'.
@@ -54,12 +69,13 @@ interface ExpressMiddlewareOptions {
     /**
      * Compute Redis key from request object and limiter.
      * If keyOverride is enabled in the limiter, this will override any key defined for that limiter.
-     * Must be defined if any of the limiters key is unspecified.
+     * Must be defined if there is a limiter with overrideKey enabled and overrideKeyFn undefined.
      */
     overrideKeyFn?: (req: Request, limiter: RateLimiter) => any;
 
     /**
      * If enabled, this will override limiter limit value.
+     * Must be defined if there is a limiter with overrideLimit enabled and overrideLimitFn undefined.
      */
     overrideLimitFn?: (req: Request, limiter: RateLimiter) => number;
 
@@ -107,12 +123,16 @@ const normalizeOptions = (options: ExpressMiddlewareOptions): ExpressMiddlewareO
 }
 
 const validateOptions = (options: ExpressMiddlewareOptions) => {
-    if (options.limiters.some(e => (!e.hasOwnProperty('key') || !e.key || e.overrideKey) && !options.overrideKeyFn)) {
-        throw new Error(`Property overrideKeyFn must be defined if a limiter has an unspecified key or overrideKey is enabled`);
+    if (options.limiters.some(e => !e.key && !e.overrideKey)) {
+        throw new Error(`Limiter requires a key or overrideKey enabled`);
     }
 
-    if (options.limiters.some(e => e.overrideLimit) && !options.overrideLimitFn) {
-        throw new Error(`Property overrideLimitFn must be defined if a limiter has overrideLimit enabled`);
+    if (options.limiters.some(e => e.overrideKey && !e.overrideKeyFn && !options.overrideKeyFn)) {
+        throw new Error('Limiter with overrideKey enabled requires at least one of limiter-specific or middleware-specific overrideKeyFn function to be defined');
+    }
+
+    if (options.limiters.some(e => e.overrideLimit && !e.overrideLimitFn && !options.overrideLimitFn)) {
+        throw new Error('Limiter with overrideLimit enabled requires at least one of limiter-specific or middleware-specific overrideLimitFn function to be defined');
     }
 }
 
@@ -124,13 +144,20 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
     validateOptions(options);
 
     return async (req: Request, res: Response, next: NextFunction) => {
-        for (const { limiter, key, overrideKey, overrideLimit, errorMessage } of options.limiters) {
+        for (const { limiter, key, overrideKey, overrideKeyFn, overrideLimit, overrideLimitFn, errorMessage } of options.limiters) {
             // Get Redis key
-            const redisKey = overrideKey ? options.overrideKeyFn!(req, limiter) : key;
+            let redisKey: any;
+
+            if (overrideKey) {
+                redisKey = overrideKeyFn ? overrideKeyFn(req, limiter) : options.overrideKeyFn!(req, limiter);
+            }
+            else {
+                redisKey = key;
+            }
 
             // Override limit if enabled
             if (overrideLimit) {
-                limiter.limit = options.overrideLimitFn!(req, limiter);
+                limiter.limit = overrideLimitFn ? overrideLimitFn(req, limiter) : options.overrideLimitFn!(req, limiter);
             }
 
             const { allowed, remaining, firstExpireAtMs, windowExpireAtMs } = await limiter.get(redisKey);

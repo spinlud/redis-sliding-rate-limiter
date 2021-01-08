@@ -139,8 +139,11 @@ describe('Express middleware', () => {
                     windowSize: 1
                 }),
                 key: 'xpollos',
-                overrideKey: true,
+                overrideKey: false,
                 overrideLimit: true,
+                overrideLimitFn: (req, limiter) => {
+                    return 3; // This should win over middleware-specific overrideLimitFn
+                },
                 errorMessage: errorMessage
             },
         ];
@@ -156,7 +159,7 @@ describe('Express middleware', () => {
                 return limiter.name;
             },
             overrideLimitFn: (req, limiter) => {
-                return 3;
+                return 7; // This should lose respect to limiter-specific overrideLimitFn
             }
         });
 
