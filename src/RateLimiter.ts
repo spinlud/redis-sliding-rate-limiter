@@ -37,6 +37,13 @@ export interface RateLimiterOptions {
     limit: number;
 
     /**
+     * How many requests are allowed to exceed the limit expressed as a fraction of the limit, rounded down.
+     * Example: with limit=10 and limitOverheadFraction=0.1, 10% of the requests (1) will be allowed to exceed the limit.
+     * Default is zero.
+     */
+    limitOverheadFraction?: number;
+
+    /**
      * Optional name for this limiter
      */
     name?: string;
@@ -73,6 +80,8 @@ export class RateLimiter {
     private _windowSize: number;
     private _windowSubdivisionUnit: Unit;
     private _limit: number;
+    private _limitOverheadFraction: number;
+    private _limitOverhead: number;
     private _window: number;
     private _windowExpireMs: number;
     private _name: string;
@@ -94,6 +103,10 @@ export class RateLimiter {
             throw new Error(`Invalid or missing required property 'limit'`);
         }
 
+        if (options.limitOverheadFraction && options.limitOverheadFraction < 0) {
+            throw new Error(`Property 'limitOverheadFraction' must be greater or equal than zero`);
+        }
+
         if (options.hasOwnProperty('windowSubdivisionUnit') && options.windowSubdivisionUnit! > options.windowUnit) {
             throw new Error(`Window subdivision must be lower or equal to the window unit`);
         }
@@ -103,6 +116,8 @@ export class RateLimiter {
         this._windowSize = options.windowSize;
         this._windowSubdivisionUnit = options.windowSubdivisionUnit ?? options.windowUnit;
         this._limit = options.limit;
+        this._limitOverheadFraction = options.limitOverheadFraction ?? 0;
+        this._limitOverhead = Math.floor(this._limit * this._limitOverheadFraction);
         this._window = convertWindowUnitToSubdivision(this._windowUnit, this._windowSubdivisionUnit) * this._windowSize;
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;
         this._name = options.name ?? `${this.windowUnit}_${this.windowSize}_${this.windowSubdivisionUnit}`;
@@ -176,6 +191,20 @@ export class RateLimiter {
 
     public set limit(v) {
         this._limit = v;
+        this._limitOverhead = Math.floor(this._limit * this._limitOverheadFraction);
+    }
+
+    public get limitOverheadFraction() {
+        return this._limitOverheadFraction;
+    }
+
+    public set limitOverheadFraction(v) {
+        this._limitOverheadFraction = v;
+        this._limitOverhead = Math.floor(this._limit * this._limitOverheadFraction);
+    }
+
+    public get limitOverhead() {
+        return this._limitOverhead;
     }
 
     public get window() {

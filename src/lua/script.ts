@@ -4,6 +4,7 @@ const LuaScript = `
     local microsecFactor = tonumber(ARGV[2])
     local expire_ms = tonumber(ARGV[3])
     local limit = tonumber(ARGV[4])
+    local limit_overhead = tonumber(ARGV[5])
     
     local now = redis.call('TIME') -- Array with seconds and microseconds for the current time
     local now_microsec = now[1] * 1000000 + now[2] -- Timestamp in microseconds
@@ -18,10 +19,12 @@ const LuaScript = `
     local current_requests_count = redis.call('ZCARD', key)
     
     -- Compute the number of remaining requests allowed in the current window
-    local remaining_allowed_requests = math.max(0, limit - current_requests_count)
+    local remaining_allowed_requests = limit - current_requests_count
     
-    -- If greater than zero, add (allow) request
-    if remaining_allowed_requests > 0 then
+    -- If greater than zero (plus limit overhead), allow request
+    local allow_request = (remaining_allowed_requests + limit_overhead) > 0
+    
+    if allow_request then
         redis.call('ZADD', key, member_score, now_microsec)
     end
     
@@ -38,7 +41,7 @@ const LuaScript = `
     -- Expire the whole key for cleanup (ms)
     redis.call('PEXPIRE', key, expire_ms)
     
-    return {remaining_allowed_requests - 1, first_expire_at, window_expire_at}
+    return {allow_request, remaining_allowed_requests - 1, first_expire_at, window_expire_at}
 `;
 
 export { LuaScript };

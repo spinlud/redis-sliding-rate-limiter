@@ -482,6 +482,61 @@ describe('RateLimiter', () => {
         });
 
         /**
+         * Limit Overhead
+         *
+         * limit=10, limitOverheadFraction=0.1
+         * 12 requests in 1 second: expected succeded=11, failed=1
+         */
+        it(`${tag} Limit Overhead`, async () => {
+            const limiter = new RateLimiter({
+                client: client,
+                windowUnit: Unit.SECOND,
+                windowSize: 1,
+                windowSubdivisionUnit: Unit.SECOND,
+                limit: 10,
+                limitOverheadFraction: 0.1,
+            });
+
+            // Flush Redis
+            await flushRedis(limiter);
+
+            const key = `${tag} Limit Overhead`;
+
+            const batchSize = limiter.limit + Math.floor(limiter.limit * limiter.limitOverheadFraction) + 1;
+
+            const batch: BatchRequest = {
+                delay: 0,
+                size: batchSize,
+                validate: (res) => {
+                    for (let i = 0; i < batchSize; ++i) {
+                        const received = res[i];
+
+                        // Expect fourth and fifth requests to succeed thanks to limit overhead
+                        const expected: Partial<RateLimiterResponse> = {
+                            allowed: true,
+                            remaining: Math.max(0, limiter.limit - i - 1),
+                        };
+
+                        // Expect last request to fail
+                        if (i === batchSize - 1) {
+                            expected.allowed = false;
+                        }
+
+                        validateLimiterResponse(received, expected);
+                    }
+                }
+            };
+
+            const config: TestConfig = {
+                limiter,
+                key,
+                batches: [batch]
+            };
+
+            await runTestConfig(config);
+        });
+
+        /**
          * Test conversions
          */
         it(`${tag} Conversions`, () => {

@@ -53,31 +53,52 @@ const { RateLimiter, Unit } = require('redis-sliding-rate-limiter');
     port: 6379
   });
 
-  // Allows 2 requests every 3 seconds, with decisecond precision 
+  // 10 requests every 3 seconds, with decisecond precision. Allow 10% of requests to exceed the limit.
   const limiter = new RateLimiter({
     client: client,
     windowUnit: Unit.SECOND,
     windowSize: 3,
     windowSubdivisionUnit: Unit.DECISECOND, // Defines with which precision elements would expire in the current window
-    limit: 2,
+    limit: 10,
+    limitOverheadFraction: 0.1, // Fraction of requests that can exceed the limit, rounded down (10 * 0.1 = 1 in this example)
   });
 
   const key = 'OneRing';
 
   const results = await Promise.all([
-    limiter.get(key),
-    limiter.get(key),
-    limiter.get(key), // Expect to fail
+    limiter.get(key), // 1
+    limiter.get(key), // 2
+    limiter.get(key), // 3
+    limiter.get(key), // 4
+    limiter.get(key), // 5
+    limiter.get(key), // 6
+    limiter.get(key), // 7
+    limiter.get(key), // 8
+    limiter.get(key), // 9
+    limiter.get(key), // 10
+    limiter.get(key), // 11 - Expect to succeed thanks to overhead
+    limiter.get(key), // 12 - Expect to fail
   ]);
 
   for (const res of results) {
     const { allowed, remaining, firstExpireAtMs, windowExpireAtMs } = res;
     console.log(allowed, remaining, firstExpireAtMs, windowExpireAtMs);
   }
+
   // Output:
-  // true 1 1609716538519 1609716538519
-  // true 0 1609716538519 1609716538520
-  // false 0 1609716538519 1609716538520
+  //
+  // true 9 1610466521278 1610466521278
+  // true 8 1610466521278 1610466521278
+  // true 7 1610466521278 1610466521279
+  // true 6 1610466521278 1610466521279
+  // true 5 1610466521278 1610466521279
+  // true 4 1610466521278 1610466521279
+  // true 3 1610466521278 1610466521279
+  // true 2 1610466521278 1610466521279
+  // true 1 1610466521278 1610466521279
+  // true 0 1610466521278 1610466521279
+  // true 0 1610466521278 1610466521279
+  // false 0 1610466521278 1610466521279
 
   client.quit();
 })();

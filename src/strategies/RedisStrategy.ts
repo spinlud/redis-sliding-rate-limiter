@@ -39,7 +39,8 @@ export class RedisStrategy extends Strategy {
             this.limiter.window,
             MicrosecondsToWindowSubdivision[this.limiter.windowSubdivisionUnit],
             this.limiter.windowExpireMs,
-            this.limiter.limit
+            this.limiter.limit,
+            this.limiter.limitOverhead
         ];
 
         let res: any;
@@ -60,10 +61,10 @@ export class RedisStrategy extends Strategy {
         }
 
         return {
-            remaining: Math.max(0, res[0]),
-            allowed: res[0] >= 0,
-            firstExpireAtMs: res[1],
-            windowExpireAtMs: res[2]
+            allowed: !!res[0],
+            remaining: Math.max(0, res[1]),
+            firstExpireAtMs: res[2],
+            windowExpireAtMs: res[3]
         };
     }
 }
