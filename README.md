@@ -155,16 +155,15 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
         // Enable/disable setting headers on response
         setHeaders: true,
 
-        // Override default response headers
-        headers: (req, limiter) => {
-            return {
-                remaining: `X-Rate-Limit-Remaining-${limiter.name}`,
-                firstExpireAt: `X-Rate-Limit-First-Expire-${limiter.name}`,
-                windowExpireAt: `X-Rate-Limit-Window-Expire-${limiter.name}`,
-            };
+        // Custom function to set headers on response object (otherwise default headers will be used)
+        setHeadersFn: (req, res, limiter, limiterResponse) => {
+            const {remaining, firstExpireAtMs, windowExpireAtMs} = limiterResponse;
+            res.set(remainingH, '' + remaining);
+            res.set(firstExpireH, '' + firstExpireAtMs);
+            res.set(resetH, '' + windowExpireAtMs);
         },
 
-        // Skip (whitelist) requests
+        // Skip (whitelist) requests. Should return true if the request must be skipped, false otherwise
         skip: (req) => {
             return req.pleaseSkipMe;      
         }

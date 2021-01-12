@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { RateLimiter } from '..';
+import {RateLimiter, RateLimiterResponse} from '..';
 
 interface HeaderKeys {
     /**
@@ -90,10 +90,10 @@ interface ExpressMiddlewareOptions {
     setHeaders?: boolean;
 
     /**
-     * If setHeaders is enabled, these headers will be set on the response object.
-     * Default will use the string 'X-Rate-Limit-[Remaining|First-Expire|Window-Expire]-' concatenated with the limiter name.
+     * Optional function to set headers on response object. If not provided, default headers will be set on the response.
+     * Called only if setHeaders is enabled.
      */
-    headers?: HeaderKeys | ((req: Request, limiter: RateLimiter) => HeaderKeys);
+    setHeadersFn?: (req: Request, res: Response, limiter: RateLimiter, limiterResponse: RateLimiterResponse) => void;
 
     /**
      * Optional function for deciding to skip rate limiting for the request. Useful for white-listing requests.
@@ -179,28 +179,25 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
                 limiter.limit = overrideLimitFn ? overrideLimitFn(req, limiter) : options.overrideLimitFn!(req, limiter);
             }
 
-            const { allowed, remaining, firstExpireAtMs, windowExpireAtMs } = await limiter.get(redisKey);
+            const limiterResponse = await limiter.get(redisKey);
+            const { allowed, remaining, firstExpireAtMs, windowExpireAtMs } = limiterResponse;
 
             // Set response headers if enabled
             if (options.setHeaders) {
-                let headers: HeaderKeys;
-
-                if (options.headers) {
-                    headers = typeof options.headers === 'function' ? options.headers(req, limiter) : options.headers;
+                // If provided, use custom function
+                if (options.setHeadersFn) {
+                    options.setHeadersFn(req, res, limiter, limiterResponse);
                 }
+                // Otherwise set default headers
                 else {
                     const baseKey = 'X-Rate-Limit';
-
-                    headers = {
-                        remaining: `${baseKey}-Remaining-${limiter.name}`,
-                        firstExpireAt: `${baseKey}-First-Expire-${limiter.name}`,
-                        windowExpireAt: `${baseKey}-Window-Expire-${limiter.name}`,
-                    };
+                    const remaining = `${baseKey}-Remaining-${limiter.name}`;
+                    const firstExpireAt = `${baseKey}-First-Expire-${limiter.name}`;
+                    const windowExpireAt = `${baseKey}-Reset-${limiter.name}`;
+                    res.set(remaining, '' + remaining);
+                    res.set(firstExpireAt, '' + firstExpireAtMs);
+                    res.set(windowExpireAt, '' + windowExpireAtMs);
                 }
-
-                res.set(headers.remaining, '' + remaining);
-                res.set(headers.firstExpireAt, '' + firstExpireAtMs);
-                res.set(headers.windowExpireAt, '' + windowExpireAtMs);
             }
 
             // Throttle request

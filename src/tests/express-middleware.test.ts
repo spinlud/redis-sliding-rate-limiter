@@ -93,7 +93,7 @@ describe('Express middleware', () => {
             const { text, status, headers } = res[i];
             const remainingHeaderKey = `${baseHeaderKey}-Remaining-${limiterName}`.toLowerCase();
             const firstExpireHeaderKey = `${baseHeaderKey}-First-Expire-${limiterName}`.toLowerCase();
-            const windowExpireHeaderKey = `${baseHeaderKey}-Window-Expire-${limiterName}`.toLowerCase();
+            const windowExpireHeaderKey = `${baseHeaderKey}-Reset-${limiterName}`.toLowerCase();
 
             if (i < res.length - 1) {
                 expect(text).toBe(okText);
@@ -189,7 +189,7 @@ describe('Express middleware', () => {
             const { text, status, headers } = res1[i];
             const remainingHeaderKey = `${baseHeaderKey}-Remaining-${limiterName}`.toLowerCase();
             const firstExpireHeaderKey = `${baseHeaderKey}-First-Expire-${limiterName}`.toLowerCase();
-            const windowExpireHeaderKey = `${baseHeaderKey}-Window-Expire-${limiterName}`.toLowerCase();
+            const windowExpireHeaderKey = `${baseHeaderKey}-Reset-${limiterName}`.toLowerCase();
 
             expect(text).toBe(okText);
             expect(status).toBe(200);
@@ -204,7 +204,7 @@ describe('Express middleware', () => {
             const { text, status, headers } = res2[i];
             const remainingHeaderKey = `${baseHeaderKey}-Remaining-${limiterName}`.toLowerCase();
             const firstExpireHeaderKey = `${baseHeaderKey}-First-Expire-${limiterName}`.toLowerCase();
-            const windowExpireHeaderKey = `${baseHeaderKey}-Window-Expire-${limiterName}`.toLowerCase();
+            const windowExpireHeaderKey = `${baseHeaderKey}-Reset-${limiterName}`.toLowerCase();
 
             if (i < res2.length - 1) {
                 expect(text).toBe(okText);
@@ -219,6 +219,62 @@ describe('Express middleware', () => {
             expect(headers).toHaveProperty(firstExpireHeaderKey);
             expect(headers).toHaveProperty(windowExpireHeaderKey);
         }
+    });
+
+    /**
+     * Override headers
+     */
+    it('Override headers', async () => {
+        const app = express();
+        const request = supertest(app);
+
+        const limiters: MiddlewareLimiter[] = [
+            {
+                limiter: new RateLimiter({
+                    client,
+                    limit: 10,
+                    windowUnit: Unit.MINUTE,
+                    windowSize: 1
+                }),
+                key: 'override_headers',
+            }
+        ];
+
+        // Flush Redis
+        for (const { limiter } of limiters) {
+            await flushRedis(limiter);
+        }
+
+        // Headers for test
+        const baseKey = 'X-Rate-Limit';
+        const remainingH = `${baseKey}-Remaining`;
+        const firstExpireH = `${baseKey}-First-Expire`;
+        const resetH = `${baseKey}-Reset`;
+
+        const middleware = createExpressMiddleware({
+            limiters: limiters,
+            setHeadersFn: (req, res, limiter, limiterResponse) => {
+                const { remaining, firstExpireAtMs, windowExpireAtMs } = limiterResponse;
+                res.set(remainingH, '' + (remaining * 100));
+                res.set(firstExpireH, '' + firstExpireAtMs);
+                res.set(resetH, '' + windowExpireAtMs);
+            }
+        });
+
+        app.use(middleware);
+
+        app.get('/', (req, res) => {
+            return res.send();
+        });
+
+        const res = await request.get('/');
+        const { text, status, headers } = res;
+
+        expect(text).toBe('');
+        expect(status).toBe(200);
+        expect(headers).toHaveProperty(remainingH.toLowerCase());
+        expect(headers).toHaveProperty(firstExpireH.toLowerCase());
+        expect(headers).toHaveProperty(resetH.toLowerCase());
     });
 
     /**
