@@ -191,12 +191,9 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
                 // Otherwise set default headers
                 else {
                     const baseKey = 'X-Rate-Limit';
-                    const remaining = `${baseKey}-Remaining-${limiter.name}`;
-                    const firstExpireAt = `${baseKey}-First-Expire-${limiter.name}`;
-                    const windowExpireAt = `${baseKey}-Reset-${limiter.name}`;
-                    res.set(remaining, '' + remaining);
-                    res.set(firstExpireAt, '' + firstExpireAtMs);
-                    res.set(windowExpireAt, '' + windowExpireAtMs);
+                    res.set(`${baseKey}-Remaining-${limiter.name}`, '' + remaining);
+                    res.set(`${baseKey}-First-Expire-${limiter.name}`, '' + firstExpireAtMs);
+                    res.set(`${baseKey}-Reset-${limiter.name}`, '' + windowExpireAtMs);
                 }
             }
 
