@@ -58,6 +58,12 @@ export interface MiddlewareLimiter {
      * Custom error message for this limiter. Default is 'Too many requests'.
      */
     errorMessage?: string | object;
+
+    /**
+     * Optional function to skip request evaluation for the current limiter.
+     * Should return true if evaluation must be skipped, false otherwise.
+     */
+    skipFn?: (req: Request, limiter: RateLimiter) => boolean;
 }
 
 interface ExpressMiddlewareOptions {
@@ -155,15 +161,23 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
             return next();
         }
 
-        for (const {
-            limiter,
-            key,
-            overrideKey,
-            overrideKeyFn,
-            overrideLimit,
-            overrideLimitFn,
-            errorMessage
-        } of options.limiters) {
+        for (const middlewareLimiter of options.limiters) {
+            const {
+                limiter,
+                key,
+                overrideKey,
+                overrideKeyFn,
+                overrideLimit,
+                overrideLimitFn,
+                errorMessage,
+                skipFn,
+            } = middlewareLimiter;
+
+            // Check if evaluation should be skipped for the current limiter
+            if (skipFn && skipFn(req, limiter)) {
+                continue;
+            }
+
             // Get Redis key
             let redisKey: any;
 

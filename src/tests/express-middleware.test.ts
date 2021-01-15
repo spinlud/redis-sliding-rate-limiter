@@ -278,6 +278,66 @@ describe('Express middleware', () => {
     });
 
     /**
+     * Skip request evaluation for a specific limiter
+     */
+    it('Skip request evaluation for a specific limiter', async () => {
+        const app = express();
+        const request = supertest(app);
+        const key = 'skipLimiter';
+
+        const limiters: MiddlewareLimiter[] = [
+            {
+                limiter: new RateLimiter({
+                    client,
+                    windowUnit: Unit.MINUTE,
+                    windowSize: 1,
+                    limit: 10,
+                }),
+                key,
+            },
+            {
+                limiter: new RateLimiter({
+                    client,
+                    windowUnit: Unit.MINUTE,
+                    windowSize: 1,
+                    limit: 1,
+                }),
+                key,
+                skipFn: (req, limiter) => {
+                    return limiter.limit === 1;
+                }
+            },
+        ];
+
+        // Flush Redis
+        for (const { limiter } of limiters) {
+            await flushRedis(limiter);
+        }
+
+        const middleware = createExpressMiddleware({
+            limiters,
+        });
+
+        app.use(middleware);
+
+        app.get('/', (req, res) => {
+            return res.send();
+        });
+
+        const res = await Promise.all([
+            request.get('/'),
+            request.get('/'),
+            request.get('/'),
+        ]);
+
+        for (let i = 0; i < res.length; ++i) {
+            const { text, status } = res[i];
+            expect(text).toBe('');
+            expect(status).toBe(200);
+        }
+    });
+
+    /**
      * Skip (whitelist) requests
      */
     it('Skip (whitelist) requests', async () => {

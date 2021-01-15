@@ -154,6 +154,10 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
                 overrideLimitFn: (req, limiter) => {
                   return parseInt(req.query.limit); // Make sure this function returns a positive integer...    
                 },
+                // Optional function to skip request evaluation for a specific limiter. Should return true if the evaluation must be skipped, false otherwise.
+                skipFn: (req, limiter) => {
+                    return false;    
+                },
                 errorMessage: '[Hourly] Too many requests',
             },
         ],

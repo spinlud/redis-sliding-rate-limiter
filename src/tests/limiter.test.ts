@@ -229,7 +229,7 @@ describe('RateLimiter', () => {
         /**
          * 10 requests per 1 decisecond with subdivision at decisecond.
          *
-         * 10 requests every decisecond: expected succeded=10 failed=0.
+         * 9 requests every decisecond: expected succeded=9 failed=0.
          */
         it(`${tag} 10req/1decisec, subdivision=decisecond`, async () => {
             const limiter = new RateLimiter({
@@ -245,7 +245,7 @@ describe('RateLimiter', () => {
 
             const key = `${tag} 10req/1decisec, subdivision=decisecond`;
             const numBatches = 50;
-            const batchSize = 10;
+            const batchSize = 9;
             const batches: BatchRequest[] = [];
             const delayTimeIncrMs = 100; // Increase delay of 1 decisecond for each batch
             let delay = 0;

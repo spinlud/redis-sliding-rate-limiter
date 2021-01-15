@@ -1,6 +1,6 @@
 {
   "name": "redis-sliding-rate-limiter",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Flexible and performant rate limiter based on sliding window algorithm with arbitrary precision",
   "main": "build/index.js",
   "types": "build/index.d.ts",
