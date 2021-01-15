@@ -42,7 +42,7 @@ export class IORedisStrategy extends Strategy {
         }
         catch(err) {
             // Script expired in Redis cache, reload and try again
-            if (err && err.message && err.message.contains('NOSCRIPT')) {
+            if (err && err.message && err.message.includes('NOSCRIPT')) {
                 this.scriptSha1 = await this.loadScript();
                 args[0] = this.scriptSha1;
                 res = await this.sendCommand('EVALSHA', ...args);
