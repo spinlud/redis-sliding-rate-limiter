@@ -412,8 +412,8 @@ describe('Express middleware', () => {
 
         const middleware = createExpressMiddleware({
             limiters: [limiter],
-            onThrottleRequest: (req, res, limiter) => {
-                return res.status(status).send(message);
+            onThrottleRequest: (req, res, key) => {
+                return res.status(status).send(message + key);
             }
         });
 
@@ -433,7 +433,7 @@ describe('Express middleware', () => {
         expect(first.status).toBe(200);
 
         const second = res[1];
-        expect(second.text).toBe(message);
+        expect(second.text).toBe(message + limiter.key);
         expect(second.status).toBe(status);
     });
 });

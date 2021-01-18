@@ -110,7 +110,7 @@ interface ExpressMiddlewareOptions {
     /**
      * Optional function to be called when a request is throttled (not allowed).
      */
-    onThrottleRequest?: (req: Request, res: Response, limiter: RateLimiter) => void;
+    onThrottleRequest?: (req: Request, res: Response, key: any) => void;
 }
 
 const normalizeOptions = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions => {
@@ -219,7 +219,7 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
             // Throttle request
             if (!allowed) {
                 if (options.onThrottleRequest) {
-                    return options.onThrottleRequest(req, res, limiter);
+                    return options.onThrottleRequest(req, res, redisKey);
                 }
                 else {
                     let message = '';
