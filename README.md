@@ -194,8 +194,8 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
         },
 
         // Function called when a request is throttled (not allowed)
-        onThrottleRequest: (req, res, limiter) => {
-            return res.status(429).send('Too many requests my lord');
+        onThrottleRequest: (req, res, key) => {
+            return res.status(429).send(`Too many requests for key ${key}`);
         }
     });
 
