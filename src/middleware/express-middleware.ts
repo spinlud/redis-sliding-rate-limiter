@@ -106,6 +106,11 @@ interface ExpressMiddlewareOptions {
      * Return true if the request should be skipped, false otherwise.
      */
     skipFn?: (req: Request) => boolean;
+
+    /**
+     * Optional function to be called when a request is throttled (not allowed).
+     */
+    onThrottleRequest?: (req: Request, res: Response, limiter: RateLimiter) => void;
 }
 
 const normalizeOptions = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions => {
@@ -213,18 +218,23 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
 
             // Throttle request
             if (!allowed) {
-                let message = '';
-
-                if (errorMessage) {
-                    if (typeof errorMessage === 'string') {
-                        message = errorMessage;
-                    }
-                    else {
-                        message = JSON.stringify(errorMessage);
-                    }
+                if (options.onThrottleRequest) {
+                    return options.onThrottleRequest(req, res, limiter);
                 }
+                else {
+                    let message = '';
 
-                return res.status(options.errorStatusCode!).send(message);
+                    if (errorMessage) {
+                        if (typeof errorMessage === 'string') {
+                            message = errorMessage;
+                        }
+                        else {
+                            message = JSON.stringify(errorMessage);
+                        }
+                    }
+
+                    return res.status(options.errorStatusCode!).send(message);
+                }
             }
         }
 

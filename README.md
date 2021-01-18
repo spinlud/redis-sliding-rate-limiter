@@ -191,6 +191,11 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
         // Skip (whitelist) requests. Should return true if the request must be skipped, false otherwise
         skip: (req) => {
             return req.pleaseSkipMe;      
+        },
+
+        // Function called when a request is throttled (not allowed)
+        onThrottleRequest: (req, res, limiter) => {
+            return res.status(429).send('Too many requests my lord');
         }
     });
 

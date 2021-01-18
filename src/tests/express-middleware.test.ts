@@ -387,5 +387,54 @@ describe('Express middleware', () => {
             expect(status).toBe(200);
         }
     });
+
+    /**
+     * On throttle request
+     */
+    it('On throttle request', async () => {
+        const app = express();
+        const request = supertest(app);
+        const message = 'Sorry mate, your request has been throttled';
+        const status = 428;
+
+        const limiter: MiddlewareLimiter = {
+            limiter: new RateLimiter({
+                client,
+                limit: 1,
+                windowUnit: Unit.MINUTE,
+                windowSize: 1
+            }),
+            key: 'onThrottleRequest',
+        };
+
+        // Flush Redis
+        await flushRedis(limiter.limiter);
+
+        const middleware = createExpressMiddleware({
+            limiters: [limiter],
+            onThrottleRequest: (req, res, limiter) => {
+                return res.status(status).send(message);
+            }
+        });
+
+        app.use(middleware);
+
+        app.get('/', (req, res) => {
+            return res.send();
+        });
+
+        const res = await Promise.all([
+            request.get('/'),
+            request.get('/'),
+        ]);
+
+        const first = res[0];
+        expect(first.text).toBe('');
+        expect(first.status).toBe(200);
+
+        const second = res[1];
+        expect(second.text).toBe(message);
+        expect(second.status).toBe(status);
+    });
 });
 
