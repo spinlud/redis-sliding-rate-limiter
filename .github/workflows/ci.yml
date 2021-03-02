@@ -32,14 +32,8 @@ jobs:
           REDIS_HOST: redis
           REDIS_PORT: 6379
 
-      - name: Check version changes
-        uses: EndBug/version-check@v1
-        id: check
-        with:
-          diff-search: true
-
       - name: Publish
-        if: steps.check.outputs.changed == 'true'
+        if: contains(github.ref, 'release') # Tag commit with 'release' string to publish
         run: |
           npm set registry "https://registry.npmjs.org"
           npm set //registry.npmjs.org/:_authToken ${{ secrets.NPM_PUBLISH_TOKEN }}
