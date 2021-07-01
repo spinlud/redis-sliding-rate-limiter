@@ -33,7 +33,7 @@ jobs:
           REDIS_PORT: 6379
 
       - name: Publish
-        if: contains(github.ref, 'release') # Tag commit with 'release' string to publish
+#        if: contains(github.ref, 'release') # Tag commit with 'release' string to publish
         run: |
           npm set registry "https://registry.npmjs.org"
           npm set //registry.npmjs.org/:_authToken ${{ secrets.NPM_PUBLISH_TOKEN }}
