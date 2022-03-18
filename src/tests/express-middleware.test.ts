@@ -26,6 +26,14 @@ describe('Express middleware', () => {
 
     const client = createRedisClient();
 
+    beforeAll(async () => {
+        // Connect redis client if needed
+        try {
+            await client.connect();
+        }
+        catch(err) {} // Ignore 'already connected' or 'connecting' errors
+    });
+
     afterAll(async () => {
         console.log(`Closing client`);
 

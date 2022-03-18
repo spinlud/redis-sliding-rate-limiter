@@ -18,19 +18,25 @@ import {
 describe('RateLimiter', () => {
     jest.setTimeout(240000);
 
-    const clients = [
-        {
-            name: 'redis',
-            client: createRedisClient(),
-        },
-        {
-            name: 'ioredis',
-            client: createIORedisClient(),
-        },
+    const testClients: any[] = [
+        [ 'redis', createRedisClient() ],
+        [ 'ioredis', createIORedisClient() ],
     ];
 
+    beforeAll(async () => {
+        // Connect redis client if needed
+        for (const [ name, client ] of testClients) {
+            if (name === 'redis' && typeof client.connect === 'function') {
+                try {
+                    await client.connect();
+                }
+                catch(err) {} // Ignore 'already connected' or 'connecting' errors
+            }
+        }
+    });
+
     afterAll(async () => {
-        for (const { client, name } of clients) {
+        for (const [ name, client ] of testClients) {
             console.log(`Closing client ${name}`);
 
             try {
@@ -45,7 +51,7 @@ describe('RateLimiter', () => {
         }
     });
 
-    for (const { client, name } of clients) {
+    for (const [ name, client ] of testClients) {
         const tag = `[${name}]`;
 
         /**

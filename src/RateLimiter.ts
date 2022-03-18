@@ -1,10 +1,12 @@
+import { EventEmitter } from 'events';
 import { Unit, convertWindowUnitToSubdivision, WindowUnitToMilliseconds } from './lua';
 import { Strategy, RedisStrategy, IORedisStrategy } from './strategies';
 
 export type SendCommand = (...args: any[]) => any;
 
 export interface RedisClientWrapper {
-    send_command: SendCommand;
+    sendCommand: SendCommand;
+    send_command?: SendCommand;
 }
 
 export interface RateLimiterOptions {
@@ -122,17 +124,17 @@ export class RateLimiter {
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;
         this._name = options.name ?? `${this.windowUnit}_${this.windowSize}_${this.windowSubdivisionUnit}`;
 
-        // Switch strategy based on send_command signature
-        switch (this._client.send_command.length) {
-            case 0:
-            case 1:
-                this._strategy = new IORedisStrategy(this);
-                break;
-            case 3:
+        // TODO: Switch strategy based on sendCommand function name (empty string for IORedis library).
+        // TODO: This is very likely to be broken in the future, a better way should be found ;-)
+        switch (this._client.sendCommand.name) {
+            case 'sendCommand':
                 this._strategy = new RedisStrategy(this);
                 break;
+            case '':
+                this._strategy = new IORedisStrategy(this);
+                break;
             default:
-                throw new Error('Unknown send_command signature');
+                throw new Error(`Unknown sendCommand function name (${this._client.sendCommand.name})`);
         }
     }
 

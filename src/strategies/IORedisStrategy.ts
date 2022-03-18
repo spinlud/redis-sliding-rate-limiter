@@ -7,7 +7,7 @@ import {
 
 export class IORedisStrategy extends Strategy {
     async sendCommand(cmd: string, ...args: any[]): Promise<any> {
-        return await this.limiter.client.send_command(cmd, ...args);
+        return await this.limiter.client.send_command!(cmd, ...args);
     }
 
     async loadScript(): Promise<string> {

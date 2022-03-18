@@ -6,25 +6,21 @@ import {
 } from '../lua';
 
 export class RedisStrategy extends Strategy {
-    sendCommand(cmd: string, ...args: any[]): Promise<any> {
-        return new Promise<any>((resolve, reject) => {
-            this.limiter.client.send_command(cmd, args, (err: Error | null, res: any) => {
-                if (err) {
-                    return reject(err);
-                }
-
-                return resolve(res);
-            });
-        });
+    async sendCommand(cmd: string, ...args: any[]): Promise<any> {
+        // return new Promise<any>((resolve, reject) => {
+        //     this.limiter.client.sendCommand(cmd, args, (err: Error | null, res: any) => {
+        //         if (err) {
+        //             return reject(err);
+        //         }
+        //
+        //         return resolve(res);
+        //     });
+        // });
+        return await this.limiter.client.sendCommand([cmd, ...args]);
     }
 
     async loadScript(): Promise<string> {
-        const args = [
-            'LOAD',
-            LuaScript
-        ];
-
-        return await this.sendCommand('SCRIPT', args);
+        return await this.sendCommand('SCRIPT', 'LOAD', LuaScript);
     }
 
     async execScript(key: any): Promise<RateLimiterResponse> {
@@ -46,7 +42,7 @@ export class RedisStrategy extends Strategy {
         let res: any;
 
         try {
-            res = await this.sendCommand('EVALSHA', args);
+            res = await this.sendCommand('EVALSHA', ...args);
         }
         catch(err: any) {
             // Script expired in Redis cache, reload and try again

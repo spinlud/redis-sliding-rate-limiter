@@ -1,5 +1,5 @@
 import { RateLimiter, RateLimiterResponse } from "../RateLimiter";
-import { RedisClient } from "redis";
+import { createClient } from "redis";
 import Redis from "ioredis";
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -19,9 +19,11 @@ export interface TestConfig {
 }
 
 export function createRedisClient(): any {
-    return new RedisClient({
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379
+    const host = process.env.REDIS_HOST ?? 'localhost';
+    const port = process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379;
+
+    return createClient({
+        url: `redis://${host}:${port}`,
     });
 }
 
