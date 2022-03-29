@@ -33,6 +33,7 @@ The main features are the following:
 * [Express](https://www.npmjs.com/package/express) compatible middleware with customizable status code, messages 
   and response headers.
 * Compatible with two popular Redis clients: [redis](https://www.npmjs.com/package/redis), [ioredis](https://www.npmjs.com/package/ioredis).
+* Zero dependencies.
 
 
 ## Installation
