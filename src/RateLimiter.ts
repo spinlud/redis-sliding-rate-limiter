@@ -3,10 +3,11 @@ import { Unit, convertWindowUnitToSubdivision, WindowUnitToMilliseconds } from '
 import { Strategy, RedisStrategy, IORedisStrategy } from './strategies';
 
 export type SendCommand = (...args: any[]) => any;
+export type Call = (command: string, args: (string | Buffer | number)[]) => any;
 
 export interface RedisClientWrapper {
-    sendCommand: SendCommand;
-    send_command?: SendCommand;
+    sendCommand?: SendCommand; // used by redis
+    call?: Call; // used by ioredis
 }
 
 export interface RateLimiterOptions {
@@ -124,17 +125,13 @@ export class RateLimiter {
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;
         this._name = options.name ?? `${this.windowUnit}_${this.windowSize}_${this.windowSubdivisionUnit}`;
 
-        // TODO: Switch strategy based on sendCommand function name (empty string for IORedis library).
+        // TODO: Switch strategy based on call function.
         // TODO: This is very likely to be broken in the future, a better way should be found ;-)
-        switch (this._client.sendCommand.name) {
-            case 'sendCommand':
-                this._strategy = new RedisStrategy(this);
-                break;
-            case '':
-                this._strategy = new IORedisStrategy(this);
-                break;
-            default:
-                throw new Error(`Unknown sendCommand function name (${this._client.sendCommand.name})`);
+        if (typeof this._client.call === 'function') {
+            this._strategy = new IORedisStrategy(this);
+        }
+        else {
+            this._strategy = new RedisStrategy(this);
         }
     }
 

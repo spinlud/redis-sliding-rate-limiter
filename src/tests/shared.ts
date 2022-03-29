@@ -1,6 +1,6 @@
-import { RateLimiter, RateLimiterResponse } from "../RateLimiter";
-import { createClient } from "redis";
-import Redis from "ioredis";
+import { RateLimiter, RateLimiterResponse } from '../RateLimiter';
+import { createClient } from 'redis';
+import Redis from 'ioredis';
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

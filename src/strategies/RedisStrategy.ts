@@ -7,16 +7,7 @@ import {
 
 export class RedisStrategy extends Strategy {
     async sendCommand(cmd: string, ...args: any[]): Promise<any> {
-        // return new Promise<any>((resolve, reject) => {
-        //     this.limiter.client.sendCommand(cmd, args, (err: Error | null, res: any) => {
-        //         if (err) {
-        //             return reject(err);
-        //         }
-        //
-        //         return resolve(res);
-        //     });
-        // });
-        return await this.limiter.client.sendCommand([cmd, ...args]);
+        return await this.limiter.client.sendCommand!([cmd, ...args]);
     }
 
     async loadScript(): Promise<string> {
