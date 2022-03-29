@@ -10,6 +10,24 @@ export interface RedisClientWrapper {
     call?: Call; // used by ioredis
 }
 
+export interface RateLimiterOptionsWindow {
+    /**
+     * Window unit (second, minute, hour, etc)
+     */
+    unit: Unit;
+
+    /**
+     * Window size in number of units (eg 1 second, 10 minutes, 2 hour, etc)
+     */
+    size: number;
+
+    /**
+     * Specify the granularity of the window, i.e. with which precision elements would expire in the current window.
+     * Must be less or equal than window unit.
+     */
+    subdivisionUnit?: Unit;
+}
+
 export interface RateLimiterOptions {
     /**
      * Client object from any of the following libraries:
@@ -19,20 +37,9 @@ export interface RateLimiterOptions {
     client: RedisClientWrapper;
 
     /**
-     * Window unit (second, minute, hour, etc)
+     * Rate limiter window properties
      */
-    windowUnit: Unit;
-
-    /**
-     * Window size in number of units (eg 1 second, 10 minutes, 2 hour, etc)
-     */
-    windowSize: number;
-
-    /**
-     * Specify the granularity of the window, i.e. with which precision elements would expire in the current window.
-     * Must be less or equal than window unit.
-     */
-    windowSubdivisionUnit?: Unit;
+    window: RateLimiterOptionsWindow;
 
     /**
      * Number of requests allowed in the window (eg 10 requests per 1 second)
@@ -44,7 +51,7 @@ export interface RateLimiterOptions {
      * Example: with limit=10 and limitOverheadFraction=0.1, 10% of the requests (1) will be allowed to exceed the limit.
      * Default is zero.
      */
-    limitOverheadFraction?: number;
+    limitOverhead?: number;
 
     /**
      * Optional name for this limiter
@@ -94,32 +101,33 @@ export class RateLimiter {
             throw new Error(`Missing required property 'client'`);
         }
 
-        if (!options.hasOwnProperty('windowUnit')) {
-            throw new Error(`Missing required property 'windowUnit'`);
+        if (!options.window || !options.window.hasOwnProperty('unit')) {
+            throw new Error(`Missing required property 'window.unit'`);
         }
 
-        if (!options.hasOwnProperty('windowSize')) {
-            throw new Error(`Missing required property 'windowSize'`);
+        if (!options.window || !options.window.hasOwnProperty('size')) {
+            throw new Error(`Missing required property 'window.size'`);
         }
 
         if (!options.limit || options.limit <= 0) {
             throw new Error(`Invalid or missing required property 'limit'`);
         }
 
-        if (options.limitOverheadFraction && options.limitOverheadFraction < 0) {
+        if (options.limitOverhead && options.limitOverhead < 0) {
             throw new Error(`Property 'limitOverheadFraction' must be greater or equal than zero`);
         }
 
-        if (options.hasOwnProperty('windowSubdivisionUnit') && options.windowSubdivisionUnit! > options.windowUnit) {
-            throw new Error(`Window subdivision must be lower or equal to the window unit`);
+        if (options.window.hasOwnProperty('subdivisionUnit')
+            && options.window.subdivisionUnit! > options.window.unit) {
+            throw new Error(`window.subdivisionUnit must be lower or equal to window.unit`);
         }
 
         this._client = options.client;
-        this._windowUnit = options.windowUnit;
-        this._windowSize = options.windowSize;
-        this._windowSubdivisionUnit = options.windowSubdivisionUnit ?? options.windowUnit;
+        this._windowUnit = options.window.unit;
+        this._windowSize = options.window.size;
+        this._windowSubdivisionUnit = options.window.subdivisionUnit ?? options.window.unit;
         this._limit = options.limit;
-        this._limitOverheadFraction = options.limitOverheadFraction ?? 0;
+        this._limitOverheadFraction = options.limitOverhead ?? 0;
         this._limitOverhead = Math.floor(this._limit * this._limitOverheadFraction);
         this._window = convertWindowUnitToSubdivision(this._windowUnit, this._windowSubdivisionUnit) * this._windowSize;
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;

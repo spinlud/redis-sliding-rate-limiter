@@ -45,23 +45,26 @@ npm install --save redis-sliding-rate-limiter
 
 ## Usage
 ```js
-const redis = require('redis');
+const { createClient } = require('redis');
 const { RateLimiter, Unit } = require('redis-sliding-rate-limiter');
 
 (async () => {
-  const client = redis.createClient({
-    host: 'localhost',
-    port: 6379
+  const client = createClient({
+    url: `redis://localhost:6379`,
   });
+
+  await client.connect();
 
   // 10 requests every 3 seconds, with decisecond precision. Allow 10% of requests to exceed the limit.
   const limiter = new RateLimiter({
     client: client,
-    windowUnit: Unit.SECOND,
-    windowSize: 3,
-    windowSubdivisionUnit: Unit.DECISECOND, // Defines with which precision elements would expire in the current window
+    window: {
+      unit: Unit.SECOND,
+      size: 3,
+      subdivisionUnit: Unit.DECISECOND, // Defines with which precision elements would expire in the current window    
+    },
     limit: 10,
-    limitOverheadFraction: 0.1, // Fraction of requests that can exceed the limit, rounded down (10 * 0.1 = 1 in this example)
+    limitOverhead: 0.1, // Fraction of requests that can exceed the limit, rounded down (10 * 0.1 = 1 in this example)
   });
 
   const key = 'OneRing';
@@ -130,8 +133,10 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
             {
                 limiter: new RateLimiter({
                     client: client,
-                    windowUnit: Unit.SECOND,
-                    windowSize: 1,
+                    window: {
+                        unit: Unit.SECOND, 
+                        size: 1,
+                    },
                     limit: 5,
                 }),
                 overrideKey: true,
@@ -145,10 +150,12 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
             {
                 limiter: new RateLimiter({
                     client: client,
-                    windowUnit: Unit.HOUR,
-                    windowSize: 1,
-                    limit: 10000, // This will be overridden
-                    windowSubdivisionUnit: Unit.MINUTE,
+                    window: {
+                        unit: Unit.HOUR,
+                        size: 1,
+                        subdivisionUnit: Unit.MINUTE,
+                    },                   
+                    limit: 10000, // This will be overridden                   
                 }),
                 overrideLimit: true,
                 // Override limit if enabled. Can also be defined at middleware level (see below).

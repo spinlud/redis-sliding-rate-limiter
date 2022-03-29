@@ -64,9 +64,11 @@ describe('RateLimiter', () => {
         it(`${tag} 10req/1sec, subdivision=decisecond`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: Unit.SECOND,
-                windowSize: 1,
-                windowSubdivisionUnit: Unit.DECISECOND,
+                window: {
+                    unit: Unit.SECOND,
+                    size: 1,
+                    subdivisionUnit: Unit.DECISECOND,
+                },
                 limit: 10
             });
 
@@ -153,9 +155,11 @@ describe('RateLimiter', () => {
         it(`${tag} 3req/3sec, subdivision=second`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: Unit.SECOND,
-                windowSize: 3,
-                windowSubdivisionUnit: Unit.DECISECOND,
+                window: {
+                    unit: Unit.SECOND,
+                    size: 3,
+                    subdivisionUnit: Unit.DECISECOND,
+                },
                 limit: 3
             });
 
@@ -240,9 +244,11 @@ describe('RateLimiter', () => {
         it(`${tag} 10req/1decisec, subdivision=decisecond`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: Unit.DECISECOND,
-                windowSize: 1,
-                windowSubdivisionUnit: Unit.DECISECOND,
+                window: {
+                    unit: Unit.DECISECOND,
+                    size: 1,
+                    subdivisionUnit: Unit.DECISECOND,
+                },
                 limit: 10
             });
 
@@ -296,9 +302,11 @@ describe('RateLimiter', () => {
         it(`${tag} 1000req/1sec, subdivision=second`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: Unit.SECOND,
-                windowSize: 1,
-                windowSubdivisionUnit: Unit.SECOND,
+                window: {
+                    unit: Unit.SECOND,
+                    size: 1,
+                    subdivisionUnit: Unit.SECOND,
+                },
                 limit: 1000
             });
 
@@ -353,9 +361,11 @@ describe('RateLimiter', () => {
         it(`${tag} First member and window expiration timestamps - 3req/2sec, subdivision=second`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: Unit.SECOND,
-                windowSize: 2,
-                windowSubdivisionUnit: Unit.SECOND,
+                window: {
+                    unit: Unit.SECOND,
+                    size: 2,
+                    subdivisionUnit: Unit.SECOND,
+                },
                 limit: 3
             });
 
@@ -496,11 +506,13 @@ describe('RateLimiter', () => {
         it(`${tag} Limit Overhead`, async () => {
             const limiter = new RateLimiter({
                 client: client,
-                windowUnit: Unit.SECOND,
-                windowSize: 1,
-                windowSubdivisionUnit: Unit.SECOND,
+                window: {
+                    unit: Unit.SECOND,
+                    size: 1,
+                    subdivisionUnit: Unit.SECOND,
+                },
                 limit: 10,
-                limitOverheadFraction: 0.1,
+                limitOverhead: 0.1,
             });
 
             // Flush Redis
@@ -551,8 +563,10 @@ describe('RateLimiter', () => {
             let limiter = new RateLimiter({
                 client,
                 limit,
-                windowUnit: Unit.MINUTE,
-                windowSize: 1
+                window: {
+                    unit: Unit.MINUTE,
+                    size: 1,
+                },
             });
 
             let { window, windowExpireMs } = limiter;
@@ -563,9 +577,11 @@ describe('RateLimiter', () => {
             limiter = new RateLimiter({
                 client,
                 limit,
-                windowUnit: Unit.MINUTE,
-                windowSize: 2,
-                windowSubdivisionUnit: Unit.SECOND
+                window: {
+                    unit: Unit.MINUTE,
+                    size: 2,
+                    subdivisionUnit: Unit.SECOND
+                },
             });
 
             ({ window, windowExpireMs } = limiter);
@@ -576,9 +592,11 @@ describe('RateLimiter', () => {
             limiter = new RateLimiter({
                 client,
                 limit,
-                windowUnit: Unit.MINUTE,
-                windowSize: 5,
-                windowSubdivisionUnit: Unit.CENTISECOND
+                window: {
+                    unit: Unit.MINUTE,
+                    size: 5,
+                    subdivisionUnit: Unit.CENTISECOND,
+                }
             });
 
             ({ window, windowExpireMs } = limiter);
@@ -589,9 +607,11 @@ describe('RateLimiter', () => {
             limiter = new RateLimiter({
                 client,
                 limit,
-                windowUnit: Unit.HOUR,
-                windowSize: 1,
-                windowSubdivisionUnit: Unit.MINUTE
+                window: {
+                    unit: Unit.HOUR,
+                    size: 1,
+                    subdivisionUnit: Unit.MINUTE
+                },
             });
 
             ({ window, windowExpireMs } = limiter);
@@ -602,9 +622,11 @@ describe('RateLimiter', () => {
             limiter = new RateLimiter({
                 client,
                 limit,
-                windowUnit: Unit.HOUR,
-                windowSize: 1,
-                windowSubdivisionUnit: Unit.SECOND
+                window: {
+                    unit: Unit.HOUR,
+                    size: 1,
+                    subdivisionUnit: Unit.SECOND
+                },
             });
 
             ({ window, windowExpireMs } = limiter);
@@ -615,9 +637,11 @@ describe('RateLimiter', () => {
             limiter = new RateLimiter({
                 client,
                 limit,
-                windowUnit: Unit.HOUR,
-                windowSize: 3,
-                windowSubdivisionUnit: Unit.DECISECOND
+                window: {
+                    unit: Unit.HOUR,
+                    size: 3,
+                    subdivisionUnit: Unit.DECISECOND
+                },
             });
 
             ({ window, windowExpireMs } = limiter);
@@ -629,13 +653,15 @@ describe('RateLimiter', () => {
                 return new RateLimiter({
                     client,
                     limit,
-                    windowUnit: Unit.SECOND,
-                    windowSize: 1,
-                    windowSubdivisionUnit: Unit.MINUTE
+                    window: {
+                        unit: Unit.SECOND,
+                        size: 1,
+                        subdivisionUnit: Unit.MINUTE
+                    },
                 });
             }
 
-            expect(createLimiter).toThrow('Window subdivision must be lower or equal to the window unit');
+            expect(createLimiter).toThrow('window.subdivisionUnit must be lower or equal to window.unit');
         });
     }
 });

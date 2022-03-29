@@ -61,8 +61,10 @@ describe('Express middleware', () => {
                 limiter: new RateLimiter({
                     client,
                     limit: 3,
-                    windowUnit: Unit.SECOND,
-                    windowSize: 1
+                    window: {
+                        unit: Unit.SECOND,
+                        size: 1,
+                    },
                 }),
                 key: 'pollos',
                 overrideKey: true,
@@ -133,8 +135,10 @@ describe('Express middleware', () => {
                 limiter: new RateLimiter({
                     client,
                     limit: 2,
-                    windowUnit: Unit.SECOND,
-                    windowSize: 1
+                    window: {
+                        unit: Unit.SECOND,
+                        size: 1,
+                    },
                 }),
                 key: 'pollos',
                 overrideKey: true,
@@ -143,8 +147,10 @@ describe('Express middleware', () => {
                 limiter: new RateLimiter({
                     client,
                     limit: 1, // This will be overridden
-                    windowUnit: Unit.MINUTE,
-                    windowSize: 1
+                    window: {
+                        unit: Unit.MINUTE,
+                        size: 1,
+                    },
                 }),
                 key: 'xpollos',
                 overrideKey: false,
@@ -241,8 +247,10 @@ describe('Express middleware', () => {
                 limiter: new RateLimiter({
                     client,
                     limit: 10,
-                    windowUnit: Unit.MINUTE,
-                    windowSize: 1
+                    window: {
+                        unit: Unit.MINUTE,
+                        size: 1,
+                    },
                 }),
                 key: 'override_headers',
             }
@@ -297,18 +305,22 @@ describe('Express middleware', () => {
             {
                 limiter: new RateLimiter({
                     client,
-                    windowUnit: Unit.MINUTE,
-                    windowSize: 1,
                     limit: 10,
+                    window: {
+                        unit: Unit.MINUTE,
+                        size: 1,
+                    },
                 }),
                 key,
             },
             {
                 limiter: new RateLimiter({
                     client,
-                    windowUnit: Unit.MINUTE,
-                    windowSize: 1,
                     limit: 1,
+                    window: {
+                        unit: Unit.MINUTE,
+                        size: 1,
+                    }
                 }),
                 key,
                 skipFn: (req, limiter) => {
@@ -358,8 +370,10 @@ describe('Express middleware', () => {
                 limiter: new RateLimiter({
                     client,
                     limit: 1,
-                    windowUnit: Unit.MINUTE,
-                    windowSize: 1
+                    window: {
+                        unit: Unit.MINUTE,
+                        size: 1,
+                    },
                 }),
                 key: 'whitelist',
             }
@@ -409,8 +423,10 @@ describe('Express middleware', () => {
             limiter: new RateLimiter({
                 client,
                 limit: 1,
-                windowUnit: Unit.MINUTE,
-                windowSize: 1
+                window: {
+                    unit: Unit.MINUTE,
+                    size: 1,
+                }
             }),
             key: 'onThrottleRequest',
         };
