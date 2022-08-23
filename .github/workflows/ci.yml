@@ -1,5 +1,8 @@
 name: ci
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches:
+      - '*'
 
 jobs:
   container-job:
@@ -33,7 +36,7 @@ jobs:
           REDIS_PORT: 6379
 
       - name: Publish
-#        if: contains(github.ref, 'release') # Tag commit with 'release' string to publish
+        if: github.ref == 'refs/heads/master'
         run: |
           npm set registry "https://registry.npmjs.org"
           npm set //registry.npmjs.org/:_authToken ${{ secrets.NPM_PUBLISH_TOKEN }}
