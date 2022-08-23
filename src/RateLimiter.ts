@@ -241,7 +241,7 @@ export class RateLimiter {
         }, null, 4);
     }
 
-    get = async (key: any): Promise<RateLimiterResponse> => {
+    public get = async (key: any): Promise<RateLimiterResponse> => {
         return await this._strategy.execScript(key);
     }
 }

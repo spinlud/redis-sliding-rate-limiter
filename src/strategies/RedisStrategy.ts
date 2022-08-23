@@ -19,16 +19,16 @@ export class RedisStrategy extends Strategy {
             this.scriptSha1 = await this.loadScript();
         }
 
-        // Redis library sendCommand function accepts arguments only as string or Buffer
+        // NB: redis library sendCommand function accepts arguments only as string or Buffer
         const args = [
             this.scriptSha1,
-            '' + 1, // number of keys
-            key,
-            '' + this.limiter.window,
-            '' + MicrosecondsToWindowSubdivision[this.limiter.windowSubdivisionUnit],
-            '' + this.limiter.windowExpireMs,
-            '' + this.limiter.limit,
-            '' + this.limiter.limitOverhead
+            '1', // number of keys
+            `${key}`,
+            `${this.limiter.window}`,
+            `${MicrosecondsToWindowSubdivision[this.limiter.windowSubdivisionUnit]}`,
+            `${this.limiter.windowExpireMs}`,
+            `${this.limiter.limit}`,
+            `${this.limiter.limitOverhead}`
         ];
 
         let res: any;

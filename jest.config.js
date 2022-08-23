@@ -4,7 +4,7 @@ module.exports = {
         '^.+\\.tsx?$': 'ts-jest'
     },
     testPathIgnorePatterns: [
-        // ...
+        '/node_modules/',
     ],
     verbose: true,
 };
