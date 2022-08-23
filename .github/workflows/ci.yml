@@ -4,7 +4,7 @@ on: [push, workflow_dispatch]
 jobs:
   container-job:
     runs-on: ubuntu-latest
-    container: node:12.20-buster-slim
+    container: node:14-buster-slim
 
     services:
       redis:
