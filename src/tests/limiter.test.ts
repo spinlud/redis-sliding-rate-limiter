@@ -30,7 +30,7 @@ describe('RateLimiter', () => {
                 try {
                     await client.connect();
                 }
-                catch(err) {} // Ignore 'already connected' or 'connecting' errors
+                catch(err) { console.log(err) } // Ignore 'already connected' or 'connecting' errors
             }
         }
     });
@@ -46,7 +46,7 @@ describe('RateLimiter', () => {
                 try {
                     client.quit();
                 }
-                catch(err) { }
+                catch(err) { console.log(err) }
             }
         }
     });
@@ -139,7 +139,7 @@ describe('RateLimiter', () => {
             const config: TestConfig = {
                 limiter,
                 key,
-                batches: [firstBatch, secondBatch, thirdBatch]
+                batches: [firstBatch, secondBatch, thirdBatch],
             };
 
             await runTestConfig(config);
