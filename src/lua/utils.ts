@@ -107,5 +107,6 @@ const WindowUnitToSubdivision = {
 }
 
 export const convertWindowUnitToSubdivision = (windowUnit: Unit, subdivision: Unit): number => {
+    // @ts-ignore
     return WindowUnitToSubdivision[`${windowUnit}:${subdivision}`];
 }
