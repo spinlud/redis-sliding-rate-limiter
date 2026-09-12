@@ -219,5 +219,19 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
 ```
 
 
+## Running the tests
+```bash
+# start a local Redis (ephemeral)
+docker compose up -d redis
+# install deps, build, run the suite against Redis on localhost:6379
+npm install
+npm run build
+npm test
+# tear down
+docker compose down
+```
+Tests default to `REDIS_HOST=localhost` / `REDIS_PORT=6379` and exercise both node-redis and ioredis.
+
+
 ## License
 [MIT License](http://en.wikipedia.org/wiki/MIT_License)

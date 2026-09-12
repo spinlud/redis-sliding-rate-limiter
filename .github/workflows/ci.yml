@@ -5,13 +5,23 @@ on:
       - '*'
 
 jobs:
-  container-job:
+  test:
+    name: test (node ${{ matrix.node }}, ${{ matrix.clients.label }})
     runs-on: ubuntu-latest
-    container: node:14-buster-slim
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        clients:
+          - { redis: '^5', ioredis: '^5', label: 'redis5-ioredis5' }
+          - { redis: '^6', ioredis: '^6', label: 'redis6-ioredis6' }
 
     services:
       redis:
-        image: redis
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
         # Set health checks to wait until redis has started
         options: >-
           --health-cmd "redis-cli ping"
@@ -21,18 +31,26 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
 
       - name: Install dependencies
         run: npm install
+
+      - name: Install matrix client versions
+        run: npm install --no-save redis@${{ matrix.clients.redis }} ioredis@${{ matrix.clients.ioredis }}
 
       - name: Build
         run: npm run build
 
       - name: Test
-        run: npm run test -- --runInBand
+        run: npm test -- --runInBand
         env:
-          REDIS_HOST: redis
+          REDIS_HOST: localhost
           REDIS_PORT: 6379
 
       - name: Publish
