@@ -12,7 +12,6 @@ import { RateLimiter, Unit } from '..';
         client: client,
         windowUnit: Unit.SECOND,
         windowSize: 3,
-        windowSubdivisionUnit: Unit.DECISECOND,
         limit: 2,
     });
 

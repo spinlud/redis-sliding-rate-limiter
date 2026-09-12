@@ -1,9 +1,7 @@
 import {
     Unit,
-    convertWindowUnitToSubdivision,
     WindowUnitToMilliseconds,
     LuaScript,
-    MicrosecondsToWindowSubdivision,
 } from './lua';
 
 /**
@@ -28,12 +26,6 @@ export interface RateLimiterOptionsWindow {
      * Window size in number of units (eg 1 second, 10 minutes, 2 hour, etc)
      */
     size: number;
-
-    /**
-     * Specify the granularity of the window, i.e. with which precision elements would expire in the current window.
-     * Must be less or equal than window unit.
-     */
-    subdivisionUnit?: Unit;
 }
 
 export interface RateLimiterOptions {
@@ -107,7 +99,6 @@ export class RateLimiter {
     private _scriptSha1?: string;
     private _windowUnit: Unit;
     private _windowSize: number;
-    private _windowSubdivisionUnit: Unit;
     private _limit: number;
     private _limitOverheadFraction: number;
     private _limitOverhead: number;
@@ -136,9 +127,8 @@ export class RateLimiter {
             throw new Error(`Property 'limitOverheadFraction' must be greater or equal than zero`);
         }
 
-        if (options.window.hasOwnProperty('subdivisionUnit')
-            && options.window.subdivisionUnit! > options.window.unit) {
-            throw new Error(`window.subdivisionUnit must be lower or equal to window.unit`);
+        if (Object.prototype.hasOwnProperty.call(options.window, 'subdivisionUnit')) {
+            throw new Error(`'window.subdivisionUnit' was removed in v7: the sliding window is now exact and no longer subdivided. See the v6 to v7 migration guide.`);
         }
 
         if (options.sendCommand) {
@@ -155,13 +145,13 @@ export class RateLimiter {
 
         this._windowUnit = options.window.unit;
         this._windowSize = options.window.size;
-        this._windowSubdivisionUnit = options.window.subdivisionUnit ?? options.window.unit;
         this._limit = options.limit;
         this._limitOverheadFraction = options.limitOverhead ?? 0;
         this._limitOverhead = Math.floor(this._limit * this._limitOverheadFraction);
-        this._window = convertWindowUnitToSubdivision(this._windowUnit, this._windowSubdivisionUnit) * this._windowSize;
+        // Sliding window length in microseconds
+        this._window = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize * 1000;
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;
-        this._name = options.name ?? `${this.windowUnit}_${this.windowSize}_${this.windowSubdivisionUnit}`;
+        this._name = options.name ?? `${this.windowUnit}_${this.windowSize}`;
     }
 
     /**
@@ -203,7 +193,7 @@ export class RateLimiter {
 
         return {
             allowed: allowedFlag !== 0,
-            remaining: Math.max(0, remaining),
+            remaining,
             firstExpireAtMs,
             windowExpireAtMs,
         };
@@ -220,7 +210,6 @@ export class RateLimiter {
             '1', // number of keys
             `${key}`,
             `${this._window}`,
-            `${MicrosecondsToWindowSubdivision[this._windowSubdivisionUnit]}`,
             `${this._windowExpireMs}`,
             `${this._limit}`,
             `${this._limitOverhead}`,
@@ -247,7 +236,7 @@ export class RateLimiter {
     }
 
     private _updateWindow(): void {
-        this._window = convertWindowUnitToSubdivision(this._windowUnit, this._windowSubdivisionUnit) * this._windowSize;
+        this._window = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize * 1000;
     }
 
     private _updateWindowExpiration(): void {
@@ -286,19 +275,6 @@ export class RateLimiter {
         this._updateWindowExpiration();
     }
 
-    public get windowSubdivisionUnit() {
-        return this._windowSubdivisionUnit;
-    }
-
-    public set windowSubdivisionUnit(v) {
-        if (v > this.windowUnit) {
-            throw new Error(`Window subdivision must be lower or equal than window unit`);
-        }
-
-        this._windowSubdivisionUnit = v;
-        this._updateWindow();
-    }
-
     public get limit() {
         return this._limit;
     }
@@ -321,6 +297,7 @@ export class RateLimiter {
         return this._limitOverhead;
     }
 
+    // Sliding window length in microseconds
     public get window() {
         return this._window;
     }
@@ -341,7 +318,6 @@ export class RateLimiter {
         return JSON.stringify({
             windowUnit: this.windowUnit,
             windowSize: this.windowSize,
-            windowSubdivisionUnit: this.windowSubdivisionUnit,
             window: this.window,
             windowExpireMs: this.windowExpireMs,
             limit: this.limit,
