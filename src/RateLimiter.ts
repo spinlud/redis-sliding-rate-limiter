@@ -1,13 +1,21 @@
-import { EventEmitter } from 'events';
-import { Unit, convertWindowUnitToSubdivision, WindowUnitToMilliseconds } from './lua';
-import { Strategy, RedisStrategy, IORedisStrategy } from './strategies';
+import {
+    Unit,
+    convertWindowUnitToSubdivision,
+    WindowUnitToMilliseconds,
+    LuaScript,
+    MicrosecondsToWindowSubdivision,
+} from './lua';
 
-export type SendCommand = (...args: any[]) => any;
-export type Call = (command: string, args: (string | Buffer | number)[]) => any;
+/**
+ * Canonical callback used to send a command to Redis. Command name and every
+ * argument are passed as strings; the reply shape is left untyped and narrowed
+ * at the point of use.
+ */
+export type SendCommandFn = (...args: string[]) => Promise<unknown>;
 
 export interface RedisClientWrapper {
-    sendCommand?: SendCommand; // used by redis
-    call?: Call; // used by ioredis
+    sendCommand?: (args: string[]) => Promise<unknown>; // used by node-redis
+    call?: (command: string, ...args: string[]) => Promise<unknown>; // used by ioredis
 }
 
 export interface RateLimiterOptionsWindow {
@@ -33,8 +41,18 @@ export interface RateLimiterOptions {
      * Client object from any of the following libraries:
      * - https://www.npmjs.com/package/redis
      * - https://www.npmjs.com/package/ioredis
+     *
+     * Mutually exclusive with `sendCommand`: provide exactly one of the two.
      */
-    client: RedisClientWrapper;
+    client?: RedisClientWrapper;
+
+    /**
+     * Callback used to send a command to Redis. Receives the command name and
+     * its arguments as strings and resolves with the raw Redis reply.
+     *
+     * Mutually exclusive with `client`: provide exactly one of the two.
+     */
+    sendCommand?: SendCommandFn;
 
     /**
      * Rate limiter window properties
@@ -82,10 +100,11 @@ export interface RateLimiterResponse {
 }
 
 export class RateLimiter {
-    private _strategy: Strategy;
     private _tag: string = '[RateLimiter]';
 
-    private _client: RedisClientWrapper;
+    private _client?: RedisClientWrapper;
+    private _sendCommand: SendCommandFn;
+    private _scriptSha1?: string;
     private _windowUnit: Unit;
     private _windowSize: number;
     private _windowSubdivisionUnit: Unit;
@@ -97,8 +116,8 @@ export class RateLimiter {
     private _name: string;
 
     constructor(options: RateLimiterOptions) {
-        if (!options.client) {
-            throw new Error(`Missing required property 'client'`);
+        if (options.client && options.sendCommand) {
+            throw new Error('Provide either `client` or `sendCommand`, not both');
         }
 
         if (!options.window || !options.window.hasOwnProperty('unit')) {
@@ -122,7 +141,18 @@ export class RateLimiter {
             throw new Error(`window.subdivisionUnit must be lower or equal to window.unit`);
         }
 
-        this._client = options.client;
+        if (options.sendCommand) {
+            this._sendCommand = options.sendCommand;
+            this._client = undefined;
+        }
+        else if (options.client) {
+            this._client = options.client;
+            this._sendCommand = this._resolveSendCommand(options.client);
+        }
+        else {
+            throw new Error('Provide either `client` or `sendCommand`');
+        }
+
         this._windowUnit = options.window.unit;
         this._windowSize = options.window.size;
         this._windowSubdivisionUnit = options.window.subdivisionUnit ?? options.window.unit;
@@ -132,15 +162,88 @@ export class RateLimiter {
         this._window = convertWindowUnitToSubdivision(this._windowUnit, this._windowSubdivisionUnit) * this._windowSize;
         this._windowExpireMs = WindowUnitToMilliseconds[this._windowUnit] * this._windowSize;
         this._name = options.name ?? `${this.windowUnit}_${this.windowSize}_${this.windowSubdivisionUnit}`;
+    }
 
-        // TODO: Switch strategy based on call function.
-        // TODO: This is very likely to be broken in the future, a better way should be found ;-)
-        if (typeof this._client.call === 'function') {
-            this._strategy = new IORedisStrategy(this);
+    /**
+     * Build the canonical send-command callback from a Redis client instance by
+     * detecting its command interface.
+     */
+    private _resolveSendCommand(client: RedisClientWrapper): SendCommandFn {
+        if (typeof client.call === 'function') {
+            const call = client.call.bind(client);
+            return (...args: string[]) => call(args[0], ...args.slice(1));
         }
-        else {
-            this._strategy = new RedisStrategy(this);
+
+        if (typeof client.sendCommand === 'function') {
+            const sendCommand = client.sendCommand.bind(client);
+            return (...args: string[]) => sendCommand(args);
         }
+
+        throw new Error('Could not detect the Redis client; pass a `sendCommand` callback instead');
+    }
+
+    private async _loadScript(): Promise<string> {
+        const reply = await this._sendCommand('SCRIPT', 'LOAD', LuaScript);
+        return String(reply);
+    }
+
+    private _isNoScriptError(err: unknown): boolean {
+        return err instanceof Error && err.message.includes('NOSCRIPT');
+    }
+
+    private _parseReply(reply: unknown): RateLimiterResponse {
+        if (!Array.isArray(reply) || reply.length < 4) {
+            throw new Error('Unexpected reply from Redis: expected a flat array of four integers');
+        }
+
+        const allowedFlag = Number(reply[0]);
+        const remaining = Number(reply[1]);
+        const firstExpireAtMs = Number(reply[2]);
+        const windowExpireAtMs = Number(reply[3]);
+
+        return {
+            allowed: allowedFlag !== 0,
+            remaining: Math.max(0, remaining),
+            firstExpireAtMs,
+            windowExpireAtMs,
+        };
+    }
+
+    private async _execScript(key: string): Promise<RateLimiterResponse> {
+        if (!this._scriptSha1) {
+            this._scriptSha1 = await this._loadScript();
+        }
+
+        // Redis command arguments are always passed as strings.
+        const args = [
+            this._scriptSha1,
+            '1', // number of keys
+            `${key}`,
+            `${this._window}`,
+            `${MicrosecondsToWindowSubdivision[this._windowSubdivisionUnit]}`,
+            `${this._windowExpireMs}`,
+            `${this._limit}`,
+            `${this._limitOverhead}`,
+        ];
+
+        let reply: unknown;
+
+        try {
+            reply = await this._sendCommand('EVALSHA', ...args);
+        }
+        catch (err: unknown) {
+            // Script expired in Redis cache, reload and try again
+            if (this._isNoScriptError(err)) {
+                this._scriptSha1 = await this._loadScript();
+                args[0] = this._scriptSha1;
+                reply = await this._sendCommand('EVALSHA', ...args);
+            }
+            else {
+                throw err;
+            }
+        }
+
+        return this._parseReply(reply);
     }
 
     private _updateWindow(): void {
@@ -155,8 +258,12 @@ export class RateLimiter {
         return this._client;
     }
 
-    public set client(v) {
+    public set client(v: RedisClientWrapper | undefined) {
         this._client = v;
+
+        if (v) {
+            this._sendCommand = this._resolveSendCommand(v);
+        }
     }
 
     public get windowUnit() {
@@ -241,7 +348,7 @@ export class RateLimiter {
         }, null, 4);
     }
 
-    public get = async (key: any): Promise<RateLimiterResponse> => {
-        return await this._strategy.execScript(key);
+    public get = async (key: string): Promise<RateLimiterResponse> => {
+        return this._execScript(key);
     }
 }

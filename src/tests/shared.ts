@@ -37,11 +37,11 @@ export function createIORedisClient(): any {
 export async function flushRedis(limiter: RateLimiter): Promise<void> {
     // Flush all keys
     // @ts-ignore
-    await limiter._strategy.sendCommand('FLUSHALL');
+    await limiter._sendCommand('FLUSHALL');
 
     // Reset slowlog
     // @ts-ignore
-    await limiter._strategy.sendCommand('SLOWLOG', 'RESET');
+    await limiter._sendCommand('SLOWLOG', 'RESET');
 }
 
 export function validateLimiterResponse(received: RateLimiterResponse, expected: Partial<RateLimiterResponse>) {
