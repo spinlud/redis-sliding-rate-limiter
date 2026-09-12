@@ -5,11 +5,29 @@
   "engines": {
     "node": ">=20"
   },
-  "main": "build/index.js",
-  "types": "build/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
   "scripts": {
-    "clean": "rm -fr build",
-    "build": "npm run clean && tsc",
+    "clean": "rm -fr dist",
+    "build": "tsup",
     "test": "jest --runInBand"
   },
   "repository": {
@@ -32,6 +50,7 @@
     "supertest": "7.2.2",
     "ts-jest": "29.4.12",
     "ts-node": "10.9.2",
+    "tsup": "^8.5.1",
     "typescript": "5.9.3"
   },
   "keywords": [
