@@ -1,3 +1,10 @@
+## 7.0.2
+
+### Documentation
+
+* Documented changing `limit`, `windowSize`, `windowUnit` and `limitOverheadFraction` at runtime via their setters,
+  with a pub/sub-driven example for propagating updates across processes (refs #2).
+
 ## 7.0.1
 
 ### Internal

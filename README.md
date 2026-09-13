@@ -15,6 +15,7 @@
 * [Client input: `client` vs `sendCommand`](#client-input-client-vs-sendcommand)
 * [How the sliding window works](#how-the-sliding-window-works)
 * [Response fields](#response-fields)
+* [Changing the limit at runtime](#changing-the-limit-at-runtime)
 * [Express middleware](#express-middleware)
 * [Running the tests](#running-the-tests)
 * [Migration](#migration)
@@ -198,6 +199,43 @@ microsecond timestamp read from the Redis server clock. On each call the limiter
 | `remaining`        | `number`  | Requests still allowed after this one, clamped at 0. Computed against the base `limit` (overhead not counted).|
 | `firstExpireAtMs`  | `number`  | Epoch milliseconds at which the oldest member in the window expires (`-1` when the window is empty).          |
 | `windowExpireAtMs` | `number`  | Epoch milliseconds at which the whole window empties (`-1` when the window is empty).                         |
+
+## Changing the limit at runtime
+Every setting used by `get()` is read at call time, so assigning `limiter.limit`, `limiter.windowSize`,
+`limiter.windowUnit` or `limiter.limitOverheadFraction` takes effect on the very next call, with no reload or
+reconnection. This makes it easy to drive the limit from a value stored in Redis and updated elsewhere: keep a
+dedicated subscriber connection (Redis does not allow a subscriber to run other commands) and reassign
+`limiter.limit` whenever a new value is published.
+
+```js
+const Redis = require('ioredis');
+const { RateLimiter, Unit } = require('redis-sliding-rate-limiter');
+
+const client = new Redis({ host: 'localhost', port: 6379 });
+
+const limiter = new RateLimiter({
+  client: client,
+  window: { unit: Unit.SECOND, size: 1 },
+  limit: 5,
+});
+
+// A subscriber cannot issue other commands, so use a separate connection for pub/sub.
+const subscriber = new Redis({ host: 'localhost', port: 6379 });
+
+subscriber.psubscribe('ratelimit:limit:*');
+
+subscriber.on('pmessage', (pattern, channel, message) => {
+  const nextLimit = Number.parseInt(message, 10);
+  // Ignore payloads that are not a positive integer.
+  if (Number.isInteger(nextLimit) && nextLimit > 0) {
+    limiter.limit = nextLimit;
+  }
+});
+```
+
+Unlike the constructor, the setter does not validate the assigned value, so guard it yourself as shown above.
+For per-request limits driven by the incoming request rather than a shared value, use the Express middleware's
+[`overrideLimit` / `overrideLimitFn`](#express-middleware) instead.
 
 ## Express middleware
 The library exposes a middleware factory for [Express](https://www.npmjs.com/package/express). Each middleware
