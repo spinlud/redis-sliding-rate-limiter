@@ -1,3 +1,26 @@
+## 7.1.0
+
+### Features
+
+* Fastify plugin (`createFastifyPlugin`) and hook factory (`createFastifyHook`) with the same option shape as the
+  Express middleware.
+* `hook` option (`'onRequest' | 'preHandler'`, default `'onRequest'`) selecting the Fastify hook the rate limiter
+  runs on.
+* Route-level opt-out via `config: { rateLimit: false }`.
+* Subpath exports `redis-sliding-rate-limiter/express` and `redis-sliding-rate-limiter/fastify`; the root import
+  still re-exports everything.
+* `express` and `fastify` are now declared as optional peer dependencies.
+
+### Documentation
+
+* Added a Fastify plugin section to the README and a note in MIGRATION about the new adapter subpaths.
+
+### Internal
+
+* Extracted a framework-agnostic middleware core shared by both adapters (`src/middleware/core.ts`).
+* Added `fastify` as a dev dependency.
+* Multi-entry `tsup` build with code splitting to share the core chunk across entries.
+
 ## 7.0.2
 
 ### Documentation
