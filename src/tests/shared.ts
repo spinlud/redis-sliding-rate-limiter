@@ -48,12 +48,14 @@ export function createRedisClientWithProtocol(resp: RespProtocol) {
     });
 }
 
-// ioredis client bound to an explicit RESP protocol version.
+// ioredis negotiates the RESP protocol from its installed major (v5 speaks RESP2,
+// v6 defaults to RESP3), with no portable per-connection override, so the requested
+// protocol is not forwarded to the constructor. The RESP-matrix test soft-skips when
+// the negotiated protocol does not match the requested one.
 export function createIORedisClientWithProtocol(protocol: RespProtocol) {
     return new Redis({
         host: process.env.REDIS_HOST ?? 'localhost',
         port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-        protocol,
     });
 }
 
