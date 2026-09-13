@@ -1,3 +1,10 @@
+## 7.0.1
+
+### Internal
+
+* Removed `any` types and non-null assertions from the express middleware (`src/middleware/express-middleware.ts`);
+  types-only cleanup, no runtime or API changes.
+
 ## 7.0.0
 
 ### Breaking changes
