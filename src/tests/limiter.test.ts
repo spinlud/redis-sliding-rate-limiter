@@ -127,6 +127,11 @@ describe('RateLimiter', () => {
             const key = `${tag} denied-semantics`;
 
             const first = await limiter.get(key);
+
+            // Separate the two seeding members in real time so the oldest and newest
+            // stored scores land in distinct milliseconds
+            await sleep(10);
+
             const second = await limiter.get(key);
 
             // Let real time advance so 'now + window' would differ from the stored anchors

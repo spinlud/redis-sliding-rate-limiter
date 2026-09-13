@@ -25,6 +25,7 @@ describe('Express middleware', () => {
     jest.setTimeout(240000);
 
     const client = createRedisClient();
+    const ioredisClient = createIORedisClient();
 
     beforeAll(async () => {
         // Connect redis client if needed
@@ -37,14 +38,16 @@ describe('Express middleware', () => {
     afterAll(async () => {
         console.log(`Closing client`);
 
-        try {
-            await client.quit();
-        }
-        catch(err) {
+        for (const c of [client, ioredisClient]) {
             try {
-                client.quit();
+                await c.quit();
             }
-            catch(err) { }
+            catch(err) {
+                try {
+                    c.quit();
+                }
+                catch(err) { }
+            }
         }
     });
 
@@ -459,6 +462,69 @@ describe('Express middleware', () => {
         const second = res[1];
         expect(second.text).toBe(message + limiter.key);
         expect(second.status).toBe(status);
+    });
+
+    /**
+     * Middleware parity: the same basic overflow behaviour must hold when the
+     * limiter is backed by ioredis instead of node-redis.
+     */
+    it('ioredis - 3req/1sec returns 429 on overflow', async () => {
+        const app = express();
+        const request = supertest(app);
+        const okText = 'Los Pollos ioredis';
+
+        const limiters: MiddlewareLimiter[] = [
+            {
+                limiter: new RateLimiter({
+                    client: ioredisClient,
+                    limit: 3,
+                    window: {
+                        unit: Unit.SECOND,
+                        size: 1,
+                    },
+                }),
+                key: 'pollos-ioredis',
+            },
+        ];
+
+        // Flush Redis
+        for (const { limiter } of limiters) {
+            await flushRedis(limiter);
+        }
+
+        const middleware = createExpressMiddleware({ limiters });
+
+        app.use(middleware);
+
+        app.get('/', (req, res) => {
+            return res.send(okText);
+        });
+
+        const res = await Promise.all([
+            request.get('/'),
+            request.get('/'),
+            request.get('/'),
+            request.get('/'),
+        ]);
+
+        const baseHeaderKey = 'X-Rate-Limit';
+        const limiterName = limiters[0].limiter.name;
+        const remainingHeaderKey = `${baseHeaderKey}-Remaining-${limiterName}`.toLowerCase();
+
+        // The four requests race, so assert on the counts rather than positions
+        const allowed = res.filter(r => r.status === 200);
+        const throttled = res.filter(r => r.status === 429);
+
+        expect(allowed).toHaveLength(3);
+        expect(throttled).toHaveLength(1);
+
+        for (const r of allowed) {
+            expect(r.text).toBe(okText);
+        }
+
+        for (const r of res) {
+            expect(r.headers).toHaveProperty(remainingHeaderKey);
+        }
     });
 });
 

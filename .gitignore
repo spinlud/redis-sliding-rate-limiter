@@ -6,6 +6,8 @@
 dist
 **/dist
 **/*.tgz
+coverage
+**/coverage
 
 # General
 .DS_Store
