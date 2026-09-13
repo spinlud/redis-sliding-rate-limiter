@@ -27,7 +27,7 @@ export interface MiddlewareLimiter {
     /**
      * A unique Redis key for this limiter. Can be overridden.
      */
-    key?: any;
+    key?: string;
 
     /**
      * Enable/disable key override. Default is false.
@@ -40,7 +40,7 @@ export interface MiddlewareLimiter {
      * This takes priority over middleware option overrideKeyFn.
      * Must be defined if overrideKey is enabled and middleware option overrideKeyFn is undefined.
      */
-    overrideKeyFn?: (req: Request, limiter: RateLimiter) => any;
+    overrideKeyFn?: (req: Request, limiter: RateLimiter) => string;
 
     /**
      * Enable/disable limit override. Default is false.
@@ -77,7 +77,7 @@ interface ExpressMiddlewareOptions {
      * If keyOverride is enabled in the limiter, this will override any key defined for that limiter.
      * Must be defined if there is a limiter with overrideKey enabled and overrideKeyFn undefined.
      */
-    overrideKeyFn?: (req: Request, limiter: RateLimiter) => any;
+    overrideKeyFn?: (req: Request, limiter: RateLimiter) => string;
 
     /**
      * If enabled, this will override limiter limit value.
@@ -110,7 +110,7 @@ interface ExpressMiddlewareOptions {
     /**
      * Optional function to be called when a request is throttled (not allowed).
      */
-    onThrottleRequest?: (req: Request, res: Response, key: any) => void;
+    onThrottleRequest?: (req: Request, res: Response, key: string) => void;
 }
 
 const normalizeOptions = (options: ExpressMiddlewareOptions): ExpressMiddlewareOptions => {
@@ -162,7 +162,7 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
 
     return async (req: Request, res: Response, next: NextFunction) => {
         // Check if request should be skipped
-        if (options.skipFn && options.skipFn!(req)) {
+        if (options.skipFn && options.skipFn(req)) {
             return next();
         }
 
@@ -184,18 +184,34 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
             }
 
             // Get Redis key
-            let redisKey: any;
+            let redisKey: string;
 
             if (overrideKey) {
-                redisKey = overrideKeyFn ? overrideKeyFn(req, limiter) : options.overrideKeyFn!(req, limiter);
+                const resolvedOverrideKeyFn = overrideKeyFn ?? options.overrideKeyFn;
+
+                if (!resolvedOverrideKeyFn) {
+                    throw new Error('Limiter with overrideKey enabled requires at least one of limiter-specific or middleware-specific overrideKeyFn function to be defined');
+                }
+
+                redisKey = resolvedOverrideKeyFn(req, limiter);
             }
             else {
+                if (key === undefined) {
+                    throw new Error(`Limiter requires a key or overrideKey enabled`);
+                }
+
                 redisKey = key;
             }
 
             // Override limit if enabled
             if (overrideLimit) {
-                limiter.limit = overrideLimitFn ? overrideLimitFn(req, limiter) : options.overrideLimitFn!(req, limiter);
+                const resolvedOverrideLimitFn = overrideLimitFn ?? options.overrideLimitFn;
+
+                if (!resolvedOverrideLimitFn) {
+                    throw new Error('Limiter with overrideLimit enabled requires at least one of limiter-specific or middleware-specific overrideLimitFn function to be defined');
+                }
+
+                limiter.limit = resolvedOverrideLimitFn(req, limiter);
             }
 
             const limiterResponse = await limiter.get(redisKey);
@@ -233,7 +249,7 @@ export const createExpressMiddleware = (options: ExpressMiddlewareOptions) => {
                         }
                     }
 
-                    return res.status(options.errorStatusCode!).send(message);
+                    return res.status(options.errorStatusCode ?? 429).send(message);
                 }
             }
         }
