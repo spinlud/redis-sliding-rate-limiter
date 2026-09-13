@@ -61,6 +61,9 @@ package root:
 const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-rate-limiter');
 ```
 
+Since 7.1 the framework adapters are also available from dedicated subpaths,
+`redis-sliding-rate-limiter/express` and `redis-sliding-rate-limiter/fastify`. The root import remains supported.
+
 ### `window` getter
 The `window` getter now returns the window length in **microseconds** (previously milliseconds). Read
 `windowExpireMs` if you need the millisecond value used for the key TTL.

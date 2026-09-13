@@ -1,6 +1,6 @@
 {
   "name": "redis-sliding-rate-limiter",
-  "version": "7.0.2",
+  "version": "7.1.0",
   "description": "Flexible and performant rate limiter based on sliding window algorithm with arbitrary precision",
   "engines": {
     "node": ">=20"
@@ -19,7 +19,37 @@
         "default": "./dist/index.js"
       }
     },
+    "./express": {
+      "import": {
+        "types": "./dist/express.d.mts",
+        "default": "./dist/express.mjs"
+      },
+      "require": {
+        "types": "./dist/express.d.ts",
+        "default": "./dist/express.js"
+      }
+    },
+    "./fastify": {
+      "import": {
+        "types": "./dist/fastify.d.mts",
+        "default": "./dist/fastify.mjs"
+      },
+      "require": {
+        "types": "./dist/fastify.d.ts",
+        "default": "./dist/fastify.js"
+      }
+    },
     "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "express": [
+        "./dist/express.d.ts"
+      ],
+      "fastify": [
+        "./dist/fastify.d.ts"
+      ]
+    }
   },
   "files": [
     "dist"
@@ -39,11 +69,24 @@
   },
   "author": "Ludovico Fabbri",
   "license": "MIT",
+  "peerDependencies": {
+    "express": "^4.0.0 || ^5.0.0",
+    "fastify": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    },
+    "fastify": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/express": "5.0.6",
     "@types/jest": "30.0.0",
     "@types/supertest": "7.2.1",
     "express": "5.2.1",
+    "fastify": "5.12.4",
     "ioredis": "6.0.0",
     "jest": "30.5.1",
     "redis": "6.2.1",
@@ -63,6 +106,9 @@
     "rolling",
     "window",
     "express",
-    "middleware"
+    "middleware",
+    "fastify",
+    "plugin",
+    "hook"
   ]
 }

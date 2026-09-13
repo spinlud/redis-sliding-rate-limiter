@@ -17,6 +17,7 @@
 * [Response fields](#response-fields)
 * [Changing the limit at runtime](#changing-the-limit-at-runtime)
 * [Express middleware](#express-middleware)
+* [Fastify plugin](#fastify-plugin)
 * [Running the tests](#running-the-tests)
 * [Migration](#migration)
 * [License](#license)
@@ -37,7 +38,7 @@ The main features are:
 * **Per-request expiration timestamps.** Every response carries `firstExpireAtMs` (when the oldest member in the
   window expires) and `windowExpireAtMs` (when the window becomes empty), so a client knows precisely when a free
   slot opens up.
-* **Express middleware** with customizable status code, messages and response headers.
+* **Express middleware and Fastify plugin** with customizable status code, messages and response headers.
 * Works with both **node-redis** and **ioredis** (majors 5 and 6), via a duck-typed `client` or an explicit
   `sendCommand` callback.
 * Ships **dual CJS and ESM** builds with an `exports` map and bundled type declarations.
@@ -50,6 +51,9 @@ npm install --save redis-sliding-rate-limiter
 `redis` and `ioredis` are peer libraries: install whichever client you use yourself. The limiter has no runtime
 dependencies of its own.
 
+`express` and `fastify` are optional peer dependencies, needed only if you use the corresponding adapter. Install
+whichever one your app already uses; if you only use the core `RateLimiter`, install neither.
+
 ## Compatibility
 
 | Component      | Supported                     |
@@ -57,6 +61,8 @@ dependencies of its own.
 | Node.js        | `>=20` (CI tests 22 and 24)   |
 | node-redis     | `5`, `6`                      |
 | ioredis        | `5`, `6`                      |
+| Express        | `4`, `5`                      |
+| Fastify        | `5`                           |
 | Redis server   | `7` (tested)                  |
 | Module formats | CommonJS + ESM                |
 
@@ -234,12 +240,22 @@ subscriber.on('pmessage', (pattern, channel, message) => {
 ```
 
 Unlike the constructor, the setter does not validate the assigned value, so guard it yourself as shown above.
-For per-request limits driven by the incoming request rather than a shared value, use the Express middleware's
-[`overrideLimit` / `overrideLimitFn`](#express-middleware) instead.
+For per-request limits driven by the incoming request rather than a shared value, use the `overrideLimit` /
+`overrideLimitFn` options of the [Express middleware](#express-middleware) or the
+[Fastify plugin](#fastify-plugin) instead.
 
 ## Express middleware
 The library exposes a middleware factory for [Express](https://www.npmjs.com/package/express). Each middleware
 evaluates one or more limiters per request.
+
+The factory is available both from the package root and from the dedicated subpath, which keeps Fastify types out
+of your build:
+
+```js
+const { createExpressMiddleware } = require('redis-sliding-rate-limiter/express');
+// The root import still works too:
+// const { createExpressMiddleware } = require('redis-sliding-rate-limiter');
+```
 
 ```js
 const express = require('express');
@@ -344,6 +360,166 @@ const { RateLimiter, Unit, createExpressMiddleware } = require('redis-sliding-ra
   app.listen(8080, () => console.log('Server listening on port 8080...'));
 })();
 ```
+
+## Fastify plugin
+The library also exposes a plugin factory for [Fastify](https://www.npmjs.com/package/fastify) with the same
+option shape as the Express middleware; a request is evaluated against one or more limiters.
+
+```js
+const fastify = require('fastify');
+const Redis = require('ioredis');
+const { RateLimiter, Unit, createFastifyPlugin } = require('redis-sliding-rate-limiter/fastify');
+
+(async () => {
+  const app = fastify();
+
+  const client = new Redis({
+    host: 'localhost',
+    port: 6379,
+  });
+
+  app.register(createFastifyPlugin({
+    // Limiters evaluated for each request, in order.
+    limiters: [
+      {
+        limiter: new RateLimiter({
+          client: client,
+          window: {
+            unit: Unit.SECOND,
+            size: 1,
+          },
+          limit: 5,
+        }),
+        overrideKey: true,
+        // Compute the Redis key from the request and limiter. Can also be defined at plugin level (below).
+        overrideKeyFn: (req, limiter) => {
+          return req.url + limiter.name;
+        },
+        key: 'This key will be overridden',
+        errorMessage: '[Peak] Too many requests',
+      },
+      {
+        limiter: new RateLimiter({
+          client: client,
+          window: {
+            unit: Unit.HOUR,
+            size: 1,
+          },
+          limit: 10000, // This will be overridden.
+        }),
+        overrideLimit: true,
+        // Override the limiter limit. Can also be defined at plugin level (below).
+        overrideLimitFn: (req, limiter) => {
+          return parseInt(req.query.limit, 10); // Make sure this returns a positive integer.
+        },
+        // Optional per-limiter skip. Return true to skip evaluation of this limiter.
+        skipFn: (req, limiter) => {
+          return false;
+        },
+        errorMessage: '[Hourly] Too many requests',
+      },
+    ],
+
+    // Plugin-level key override.
+    // Fallback when a limiter has overrideKey enabled but provides no overrideKeyFn.
+    overrideKeyFn: (req, limiter) => {
+      return 'some key';
+    },
+
+    // Plugin-level limit override.
+    // Fallback when a limiter has overrideLimit enabled but provides no overrideLimitFn.
+    overrideLimitFn: (req, limiter) => {
+      return 666;
+    },
+
+    // Status code returned when a request is throttled (default 429).
+    errorStatusCode: 429,
+
+    // Enable/disable setting rate-limit headers on the response (default true).
+    setHeaders: true,
+
+    // Custom function to set headers on the response. Called only when setHeaders is enabled;
+    // when omitted, default X-Rate-Limit-* headers are set instead.
+    setHeadersFn: (req, reply, limiter, limiterResponse) => {
+      const { remaining, firstExpireAtMs, windowExpireAtMs } = limiterResponse;
+      reply.header(`X-Rate-Limit-Remaining-${limiter.name}`, '' + remaining);
+      reply.header(`X-Rate-Limit-First-Expire-${limiter.name}`, '' + firstExpireAtMs);
+      reply.header(`X-Rate-Limit-Reset-${limiter.name}`, '' + windowExpireAtMs);
+    },
+
+    // Optional whitelist. Return true to skip rate limiting entirely for the request.
+    skipFn: (req) => {
+      return false;
+    },
+
+    // Called when a request is throttled (not allowed). The callback must send the reply itself,
+    // otherwise the request proceeds to the route handler.
+    onThrottleRequest: (req, reply, key) => {
+      return reply.code(428).send(`Too many requests for key ${key}`);
+    },
+
+    // Hook the rate limiter runs on: 'onRequest' (default) or 'preHandler'.
+    hook: 'onRequest',
+  }));
+
+  app.get('/', (req, reply) => {
+    return reply.send('Yo!');
+  });
+
+  // Opt a route out of rate limiting.
+  app.get('/health', { config: { rateLimit: false } }, (req, reply) => {
+    return reply.send('OK');
+  });
+
+  app.listen({ port: 3000 });
+})();
+```
+
+### Per-route hook
+`createFastifyHook` builds an async hook you can attach to a single route instead of a whole scope:
+
+```js
+const { createFastifyHook } = require('redis-sliding-rate-limiter/fastify');
+
+app.get('/', { onRequest: createFastifyHook({ /* same options as above, minus `hook` */ }) }, (req, reply) => {
+  return reply.send('Yo!');
+});
+```
+
+The same hook also works as a `preHandler`.
+
+### Scoping
+`createFastifyPlugin` applies to the scope that registers it. Registering it on the root instance limits every
+route; registering it inside a child plugin limits only that child's routes:
+
+```js
+app.register(async (scope) => {
+  scope.register(createFastifyPlugin({ /* options */ }));
+
+  // Only routes declared in this scope are rate limited.
+  scope.get('/limited', (req, reply) => reply.send('limited'));
+});
+
+// Routes outside the scope are not affected.
+app.get('/open', (req, reply) => reply.send('open'));
+```
+
+### Errors
+Redis errors and configuration errors reject the hook and are routed to Fastify's error handler (default 500),
+just like a throwing async middleware in Express 5. Whether to fail open (serve the request) or fail closed
+(reject it) is your application's choice, made in that error handler.
+
+### Importing
+The factories are available from the `redis-sliding-rate-limiter/fastify` subpath, which keeps Express types out
+of your build; the root import also works:
+
+```js
+const { createFastifyPlugin, createFastifyHook } = require('redis-sliding-rate-limiter/fastify');
+// The root import still works too:
+// const { createFastifyPlugin, createFastifyHook } = require('redis-sliding-rate-limiter');
+```
+
+Fastify 5 is required.
 
 ## Running the tests
 ```bash
