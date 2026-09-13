@@ -200,6 +200,43 @@ describe('RateLimiter', () => {
         });
 
         /**
+         * On an allowed request into a non-empty window windowExpireAtMs anchors to
+         * now + window: the newest member is the one just added by this very call, so
+         * its expiry is now + window regardless of the older members already stored.
+         * firstExpireAtMs keeps tracking the oldest member and stays earlier.
+         */
+        it(`${tag} allowed request into a non-empty window anchors windowExpireAtMs to now + window`, async () => {
+            const limiter = new RateLimiter({
+                client,
+                window: { unit: Unit.SECOND, size: 2 },
+                limit: 5,
+            });
+
+            await flushRedis(limiter);
+
+            const key = `${tag} allowed-nonempty-anchor`;
+
+            const first = await limiter.get(key);
+
+            // Advance real time so the newest member is well separated from the oldest
+            await sleep(300);
+
+            const before = Date.now();
+            const second = await limiter.get(key);
+            const after = Date.now();
+
+            expect(second.allowed).toBe(true);
+
+            // windowExpireAtMs tracks the just-added newest member (now + window), not the oldest
+            expect(second.windowExpireAtMs).toBeGreaterThanOrEqual(before + limiter.windowExpireMs);
+            expect(second.windowExpireAtMs).toBeLessThanOrEqual(after + limiter.windowExpireMs + 1);
+
+            // The oldest member still governs firstExpireAtMs, which precedes the window expiry
+            expect(second.firstExpireAtMs).toBe(first.firstExpireAtMs);
+            expect(second.firstExpireAtMs).toBeLessThan(second.windowExpireAtMs);
+        });
+
+        /**
          * Limit overhead widens only the allow decision, never the reported remaining.
          * With limit=10 and overhead fraction 0.1, one extra request is admitted.
          */

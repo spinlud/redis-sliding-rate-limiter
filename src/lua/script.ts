@@ -40,13 +40,21 @@ const LuaScript = `
         redis.call('PEXPIRE', key, expire_ms)
     end
 
-    -- Expiry epochs are read from scores, never parsed from members
+    -- windowExpireAtMs is the newest member's expiry. On an allowed request that
+    -- member is the one just added at now_us, so its expiry is now_us + window_us and
+    -- needs no read. On a denied request nothing was added, so the newest existing
+    -- member is older than now_us and its score must be read.
     local window_expire_at = -1
-    local newest = redis.call('ZRANGE', key, -1, -1, 'WITHSCORES')
-    if newest[2] then
-        window_expire_at = ceil_to_ms(tonumber(newest[2]) + window_us)
+    if allow_request then
+        window_expire_at = ceil_to_ms(now_us + window_us)
+    else
+        local newest = redis.call('ZRANGE', key, -1, -1, 'WITHSCORES')
+        if newest[2] then
+            window_expire_at = ceil_to_ms(tonumber(newest[2]) + window_us)
+        end
     end
 
+    -- firstExpireAtMs tracks the oldest member; its score is read on both paths
     local first_expire_at = -1
     local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
     if oldest[2] then
